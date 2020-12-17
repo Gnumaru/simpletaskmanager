@@ -1,0 +1,25 @@
+.force_scroll{
+    overflow: scroll;
+    /* 8k width */
+    width: 7680px; 
+}
+div.card{
+    /* opacity: 1; */
+    background-color: #00000030;
+    margin: 5px 5px 5px 5px;
+    border-radius: 20px
+}
+div.idented{
+/* 
+    border: 1px solid black;
+    
+    background-color: #808080;
+*/
+margin-left: 20px;
+}
+/* .odd_row{
+    background-color: #808080;
+}
+.even_row{
+    background-color: #C0C0C0;
+} */
