@@ -1,2 +1,2 @@
-# simpletaskmanager.github.io
+# simpletaskmanager
 A simple, browser based, task manager
