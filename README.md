@@ -1,2 +1,2 @@
 # simpletaskmanager
-A simple, browser based, task manager
+A simple, browser based, task manager.

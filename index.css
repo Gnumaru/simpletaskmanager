@@ -1,3 +1,9 @@
+* {
+    font-size: 1em;
+    color: hsla(0, 100%, 0%, 1);
+    font-family: Arial;
+}
+
 .force_scroll{
     /* overflow: scroll; */
     /* 8k width */
@@ -5,7 +11,8 @@
 }
 
 div.card{
-    background-color: #cc99ddee;
+    background-color: hsla(270, 100%, 50%, 0.6);
+    /* background-color: #cc99ddee; */
     margin: 5px 5px 5px 5px;
 }
 
@@ -18,14 +25,14 @@ div.pad10px{
 }
 
 .highlight{
-    background-color: #FFFF00;
+    background-color: hsla(60, 100%, 50%, 1);
 }
 
 textarea{
     border: none;
 }
 
-input{
+input, select{
     border: none;
 }
 
@@ -33,12 +40,12 @@ input{
     margin: 5px 5px 5px 5px;
 }
 
-input:hover, textarea:hover, button:hover, input:focus, textarea:focus, button:focus{
+input:hover, textarea:hover, button:hover, input:focus, textarea:focus, button:focus, select:focus{
     outline: none;
 }
 
 input[type="button"]{
-    background-color: #e3cdf199;
+    background-color: hsla(270, 100%, 80%, 0.7);
 }
 
 /* input[type="button"].up{

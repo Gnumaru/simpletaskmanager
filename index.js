@@ -1,8 +1,4 @@
-/*
-LICENSE: This software is licensed under the MIT license
-
-This source file is purposefully not minified or obfuscated in any way. Instead of clonning the github repo, You should be able to save this page and edit it directly.
-*/
+// LICENSE: This software is licensed under the terms and conditions specified in the LICENSE file.
 (() => {
     let document = window.document;
     let body = document.body;
@@ -15,12 +11,19 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     let menu_div = null;
     let data_div = null;
     let data = {
+        // hold the task data itself
         tasks: null,
+        // hold the statuses names
         statuses: null,
+        // hold the roles names
         roles: null,
+        // hold the assignees names
         assignees: null,
+        // hold the tags names
         tags: null,
+        // relation table between task and tags, so that we can assign any number of tags to a task
         tag_task_rel: null,
+        // miscelaneous table, holding things like application configuration
         other: null,
     };
     let update_timeouts = {};
@@ -53,10 +56,10 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
             name: 'To do',
         }, {
             id: 2,
-            name: 'Doing',
+            name: 'Next',
         }, {
             id: 3,
-            name: 'Next',
+            name: 'Doing',
         }, {
             id: 4,
             name: 'Done',
@@ -78,10 +81,22 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
             description: '',
         }, {
             id: 4,
-            name: 'Assembly',
+            name: 'Assembling',
             description: '',
         }, {
             id: 5,
+            name: 'Design',
+            description: '',
+        }, {
+            id: 6,
+            name: 'Quality Assurance',
+            description: '',
+        }, {
+            id: 7,
+            name: 'Marketing',
+            description: '',
+        }, {
+            id: 8,
             name: 'Management',
             description: '',
         }
@@ -94,11 +109,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
             description: '',
         }, {
             id: 2,
-            name: 'John',
-            description: '',
-        }, {
-            id: 2,
-            name: 'Doe',
+            name: 'The other guy',
             description: '',
         },
     ];
@@ -149,7 +160,11 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
 
 
+    let identity = (i) => i;
 
+    let new_date = (i) => new Date(i);
+
+    let new_date_ms = (i) => new Date(i).valueOf();
 
     let logalert = (msg) => {
         log(msg);
@@ -163,19 +178,20 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
 
     let new_task = (overrides) => {
+        let now_ms = Date.now();
         let new_task_obj = {
             // indexes should come before anything else
             id: ++sequences.tasks,
             parent_id: 0,
-            assignee_id: 1,
+            assignee_id: 0,
             role_id: 0,
-            status_id: 1,
+            status_id: 0,
 
             // dates should be stored as int unix timestamps, like those returned by Date.now() or the (new Date()).valueOf()
-            creation_date: Date.now(),
-            last_update_date: Date.now(),
-            start_date: Date.now(),
-            due_date: Date.now(),
+            creation_date: now_ms,
+            last_update_date: now_ms,
+            start_date: now_ms,
+            due_date: now_ms,
 
             // Every key expecting non string values should be put before the 'name' key. Every key expecting string values should be put after 'name' key. Keys should be grouped by javascript type (number, bool, string). this is for organization purposes only
             name: '',
@@ -802,31 +818,31 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     };
 
 
-    let recursive_update_check = (task_obj, field_name, input_element, how_much_we_should_wait_ms) => {
+    let recursive_update_check = (task_obj, field_name, input_element, how_much_we_should_wait_ms, func) => {
         let id = task_obj.id;
         let before = update_timeouts[id];
         let now = Date.now();
         let how_much_time_actually_passed_ms = now - before;
         if (how_much_time_actually_passed_ms >= how_much_we_should_wait_ms) {
             let old_value = task_obj[field_name];
-            let new_value = task_obj[field_name] = input_element.value;
+            let new_value = task_obj[field_name] = func(input_element.value);
             task_obj.last_update_date = Date.now();
             log(`task.'${field_name}' changed from '${old_value}' to '${new_value}'`)
             update_timeouts[id] = null;
             return;
         }
-        setTimeout((diff) => recursive_update_check(task_obj, field_name, input_element, how_much_we_should_wait_ms - how_much_time_actually_passed_ms), how_much_we_should_wait_ms);
+        setTimeout((diff) => recursive_update_check(task_obj, field_name, input_element, how_much_we_should_wait_ms - how_much_time_actually_passed_ms, func), how_much_we_should_wait_ms);
     }
 
 
-    let update_after_timeout = (task_obj, field_name, input_element, sleep_msecs) => {
+    let update_after_timeout = (task_obj, field_name, input_element, sleep_msecs, func = identity) => {
         let id = task_obj.id;
         let cur_timeout = update_timeouts[id];
         let now = Date.now();
         if (!cur_timeout) {
             // if there is no timeout running, set the time and call the function
             update_timeouts[id] = now;
-            setTimeout(() => recursive_update_check(task_obj, field_name, input_element, sleep_msecs), sleep_msecs);
+            setTimeout(() => recursive_update_check(task_obj, field_name, input_element, sleep_msecs, func), sleep_msecs);
         } else {
             // if there is already a timeout running, just reset the time
             update_timeouts[id] = now;
@@ -868,6 +884,20 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
         delete_task(div, task);
 
+    }
+
+
+    let add_select_options = (select, options) => {
+        create_and_add_child(select, 'option', {
+            value: 0,
+            innerText: '-',
+        });
+        for (option of options) {
+            create_and_add_child(select, 'option', {
+                value: option.id,
+                innerText: option.name,
+            });
+        }
     }
 
 
@@ -914,6 +944,36 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
             onkeyup: function () { update_after_timeout(task_obj, 'description', this, default_sleep_msecs) },
         });
 
+        let label_start_date = create_and_add_child(current_form, 'label', { textContent: 'Start Date:' });
+        let input_start_date = create_and_add_child(current_form, 'input', {
+            type: 'date',
+            onchange: function () { update_after_timeout(task_obj, 'start_date', this, default_sleep_msecs, new_date_ms) },
+        });
+
+        let label_due_date = create_and_add_child(current_form, 'label', { textContent: 'Due Date:' });
+        let input_due_date = create_and_add_child(current_form, 'input', {
+            type: 'date',
+            onchange: function () { update_after_timeout(task_obj, 'due_date', this, default_sleep_msecs, new_date_ms) },
+        });
+
+        let label_select_asignee = create_and_add_child(current_form, 'label', { textContent: 'Assignee:' });
+        let select_asignee = create_and_add_child(current_form, 'select', {
+            onchange: function () { update_after_timeout(task_obj, 'assignee_id', this, default_sleep_msecs, parseInt) },
+        });
+        add_select_options(select_asignee, data.assignees);
+
+        let label_select_role = create_and_add_child(current_form, 'label', { textContent: 'Role:' });
+        let select_role = create_and_add_child(current_form, 'select', {
+            onchange: function () { update_after_timeout(task_obj, 'role_id', this, default_sleep_msecs, parseInt) },
+        });
+        add_select_options(select_role, data.roles);
+
+        let label_select_status = create_and_add_child(current_form, 'label', { textContent: 'Status:' });
+        let select_status = create_and_add_child(current_form, 'select', {
+            onchange: function () { update_after_timeout(task_obj, 'status_id', this, default_sleep_msecs, parseInt) },
+        });
+        add_select_options(select_status, data.statuses);
+
         // let focus_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
         let highlight_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'highlight task', onclick: () => highlight_task(highlight_button, container_div) }, ['margin5px']);
         let hide_show_children_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'hide child tasks', onclick: hide_show_children }, ['margin5px']);
@@ -959,6 +1019,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
                 name: 'root task name',
                 description: 'root task description',
             })]);
+        window.history.pushState('', '', '');
     }
 
 
@@ -1002,7 +1063,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
         // load from indexeddb
 
-        let buttons_separator_0 = create_and_add_child(menu_div, 'br');
+        create_and_add_child(menu_div, 'br');
 
         let save_to_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to url', onclick: save_to_url_get_param }, ['margin5px']);
 
@@ -1020,9 +1081,17 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
         let download_tsv_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download tsv', onclick: download_tsv }, ['margin5px']);
 
-        let buttons_separator_1 = create_and_add_child(menu_div, 'br');
+        create_and_add_child(menu_div, 'br');
 
         let add_root_task_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'add root task', onclick: add_root_task }, ['margin5px']);
+
+        create_and_add_child(menu_div, 'br');
+
+        // let switch_to_hierarchical_view_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'hierarchical view', onclick: switch_to_hierarchical_view }, ['margin5px']);
+
+        // let switch_to_kanban_view_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'kanban view', onclick: switch_to_kanban_view }, ['margin5px']);
+
+        // let switch_to_gantt_view_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'gantt view', onclick: switch_to_gantt_view }, ['margin5px']);
 
         // add root children
     };
