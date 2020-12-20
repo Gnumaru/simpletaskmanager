@@ -1,11 +1,11 @@
 .force_scroll{
-    overflow: scroll;
+    /* overflow: scroll; */
     /* 8k width */
-    width: 7680px; 
+    /* width: 7680px;  */
 }
 
 div.card{
-    background-color: #cc99ff;
+    background-color: #cc99ddee;
     margin: 5px 5px 5px 5px;
 }
 
@@ -17,7 +17,7 @@ div.pad10px{
     padding: 5px;
 }
 
-.focus{
+.highlight{
     background-color: #FFFF00;
 }
 
@@ -36,3 +36,14 @@ input{
 input:hover, textarea:hover, button:hover, input:focus, textarea:focus, button:focus{
     outline: none;
 }
+
+input[type="button"]{
+    background-color: #e3cdf199;
+}
+
+/* input[type="button"].up{
+    background-color: #00000000;
+    background-image: url(up.png);
+    width: 16px;
+    height: 16px;
+} */

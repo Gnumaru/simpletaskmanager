@@ -16,9 +16,15 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     let data_div = null;
     let data = {
         tasks: null,
-        notes: null,
+        statuses: null,
+        roles: null,
+        assignees: null,
+        tags: null,
+        tag_task_rel: null,
+        other: null,
     };
     let update_timeouts = {};
+    let translations = {};
 
     let id_container_div_prefix = 'id_container_div_';
     let id_form_div_prefix = 'id_form_div_';
@@ -27,7 +33,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     let default_row_separator = '\n';
     let default_column_separator = '\t';
     let default_quote_char = '"';
-    let max_id = 0;
+    let sequences = {};
     // timeout used to save the input data to its task object. instead of saving every keypress, we only save after one second passed since the last keyup event
     let default_sleep_msecs = 1000;
 
@@ -38,7 +44,108 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     let task_id_to_task = null;
 
     let prompt = window.prompt;
+    let confirm = window.confirm;
     let log = console.log;
+
+    data.statuses = [
+        {
+            id: 1,
+            name: 'To do',
+        }, {
+            id: 2,
+            name: 'Doing',
+        }, {
+            id: 3,
+            name: 'Next',
+        }, {
+            id: 4,
+            name: 'Done',
+        }
+    ];
+
+    data.roles = [
+        {
+            id: 1,
+            name: 'Graphics',
+            description: '',
+        }, {
+            id: 2,
+            name: 'Audio',
+            description: '',
+        }, {
+            id: 3,
+            name: 'Programming',
+            description: '',
+        }, {
+            id: 4,
+            name: 'Assembly',
+            description: '',
+        }, {
+            id: 5,
+            name: 'Management',
+            description: '',
+        }
+    ];
+
+    data.assignees = [
+        {
+            id: 1,
+            name: 'Me',
+            description: '',
+        }, {
+            id: 2,
+            name: 'John',
+            description: '',
+        }, {
+            id: 2,
+            name: 'Doe',
+            description: '',
+        },
+    ];
+
+    data.tags = [
+        {
+            id: 1,
+            name: 'Easy',
+            description: 'mark tasks that are considered having easy dificulty (this has no relation with time, only dificulty)',
+        }, {
+            id: 2,
+            name: 'Medium Dificulty',
+            description: 'mark tasks that are considered having medium dificulty (this has no relation with time, only dificulty)',
+        }, {
+            id: 3,
+            name: 'Hard',
+            description: 'mark tasks that are considered having hard dificulty (this has no relation with time, only dificulty)',
+        }, {
+            id: 4,
+            name: 'Quick',
+            description: 'mark tasks that are considered being quick (this has no relation with dificulty, only time)',
+        }, {
+            id: 5,
+            name: 'Medium duration',
+            description: 'mark tasks that are considered having medium duration (this has no relation with dificulty, only time)',
+        }, {
+            id: 6,
+            name: 'Long',
+            description: 'mark tasks that are considered to take much time to finish (this has no relation with dificulty, only time)',
+        },
+    ];
+
+    data.tag_task_rel = [
+        {
+            id: 1,
+            task_id: 0,
+            tag_id: 0,
+        }
+    ];
+
+    data.other = [
+        {
+            id: 1,
+            name: '',
+            value: '',
+        }
+    ]
 
 
 
@@ -50,26 +157,36 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     }
 
 
+    let translate = (identifier, language) => {
+        return translations[identifier][language] ?? identifier;
+    }
+
+
     let new_task = (overrides) => {
-        let new_task = {
-            id: 0,
+        let new_task_obj = {
+            // indexes should come before anything else
+            id: ++sequences.tasks,
             parent_id: 0,
+            assignee_id: 1,
+            role_id: 0,
+            status_id: 1,
 
             // dates should be stored as int unix timestamps, like those returned by Date.now() or the (new Date()).valueOf()
             creation_date: Date.now(),
-            // start_date:'',
-            // end_date:'',
+            last_update_date: Date.now(),
+            start_date: Date.now(),
+            due_date: Date.now(),
 
-            // every key expecting non string values should be put before the 'name' key
-            // every key expecting string values should be put after 'name' key
+            // Every key expecting non string values should be put before the 'name' key. Every key expecting string values should be put after 'name' key. Keys should be grouped by javascript type (number, bool, string). this is for organization purposes only
             name: '',
             description: '',
+        }
 
-        }
         for (let key in overrides) {
-            new_task[key] = overrides[key];
+            new_task_obj[key] = overrides[key];
         }
-        return new_task;
+
+        return new_task_obj;
     }
 
 
@@ -186,30 +303,46 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     }
 
 
-    let create_fake_tasks = () => {
+    let create_fake_tasks = (flat) => {
         let tasks = [];
-        let i = 1;
-        let max = 100; // this will create a total of 198 tasks
-        for (; i < max; i++) {
-            let i_minus_one = i - 1;
-            tasks.push(new_task({
-                id: i,
-                parent_id: i_minus_one,
-                name: `child of ${i_minus_one} name`,
-                description: `child of ${i_minus_one} description`,
-            }));
+        sequences.tasks = 0;
+        let start_id = sequences.tasks;
+        // I have tested up to 10000 (ten thousand) fake tasks. the compressed, base64 encoded string weighted about only 160KB. If we assume 100000 (one hundred thousand) fake tasks weigh 1600KB, then it will be safe to assume that saving to the url (wich has 2MB limit on current chrome) will always be possible to virtually any kind or project
+        let tasks_to_generate = 100;
+        let end_id = start_id + tasks_to_generate;
+        if (flat) {
+            for (start_id = 0; start_id < end_id; start_id++) {
+                tasks.push(new_task({
+                    parent_id: 0,
+                    name: `My name is ${start_id}`,
+                    description: `My name is ${start_id}, son of no one`,
+                    description: `I am known as ${start_id + 1}, son of no one`,
+                }));
+            }
+
+        } else {
+            tasks_to_generate /= 2;
+            end_id = tasks_to_generate;
+            // make a 'pyramid'
+            for (; start_id < end_id; start_id++) {
+                // let start_id_minus_one = start_id - 1;
+                tasks.push(new_task({
+                    parent_id: start_id,
+                    name: `My name is ${start_id + 1}`,
+                    description: `I am known as ${start_id + 1}, son of ${start_id}, son of ${start_id - 1}`,
+                }));
+            }
+            let j = tasks_to_generate;
+            for (; j > 0; j--) {
+                tasks.push(new_task({
+                    parent_id: j,
+                    name: `My name is ${start_id + 1}`,
+                    description: `I am known as ${start_id + 1}, son of ${j}, son of ${j - 1}`,
+                }));
+                start_id++;
+            }
         }
-        let j = max - 2;
-        for (; j > 0; j--) {
-            i++;
-            let i_minus_one = i - 1;
-            tasks.push(new_task({
-                id: i,
-                parent_id: j,
-                name: `other child of ${j} name`,
-                description: `other child of ${j} description`,
-            }));
-        }
+
         return tasks;
     };
 
@@ -222,7 +355,8 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
         get_params = get_params.substr(1)
         let b64 = get_params.substr(5);
         let tsv = decompressFromBase64(b64);
-        replace_tasks(tsv_text_parse(tsv));
+        parse_multitable_tsv_text(tsv);
+        rebuild_indexes();
     };
 
     let load_from_url_and_rebuild = () => {
@@ -232,7 +366,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
 
     let load_fake_tasks = () => {
-        replace_tasks(create_fake_tasks());
+        replace_tasks(create_fake_tasks(false));
         rebuild_data_div()
     };
 
@@ -254,36 +388,45 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     }
 
 
-    let generate_tasks_tsv_string = (quote_char = default_quote_char, column_separator = default_column_separator) => {
+    let generate_tsv_text = (quote_char = default_quote_char, column_separator = default_column_separator) => {
         let str = '';
-        for (let key in data.tasks[0]) {
-            str += key + column_separator;
-        }
-        str = str.substr(0, str.length - 1) + default_row_separator;
-
-        for (let row of data.tasks) {
-            for (let key in row) {
-                // its safer to stringify all the fields beforehand
-                let value = JSON.stringify(row[key]);
-                str += value + column_separator;
+        for (let table_name in data) {
+            str = str + table_name + default_row_separator;
+            let rows = data[table_name];
+            for (let key in rows[0]) {
+                str += key + column_separator;
             }
             str = str.substr(0, str.length - 1) + default_row_separator;
+
+            for (let row of rows) {
+                for (let key in row) {
+                    // its safer to stringify all the fields beforehand
+                    let value = JSON.stringify(row[key]);
+                    str += value + column_separator;
+                }
+                str = str.substr(0, str.length - 1) + default_row_separator;
+            }
+            str = str.substr(0, str.length - 1) + default_table_separator;
         }
+        str = str.substr(0, str.length - default_table_separator.length);
+
         return str;
     }
 
 
     let download_tsv = (quote_char = default_quote_char, column_separator = default_column_separator) => {
-        let str = generate_tasks_tsv_string(quote_char, column_separator);
+        let str = generate_tsv_text(quote_char, column_separator);
         download_string('db.tsv', str);
     }
 
 
-    let tsv_text_parse = (text, row_separator = default_row_separator, column_separator = default_column_separator, pdefault_quote_char = default_quote_char) => {
-        let trimmed = text.trim();
-        let rows = trimmed.split(row_separator);
+
+
+
+    let parse_table_rows = (table_name, rows, column_separator = default_column_separator, quote_char = default_quote_char) => {
         let head = rows.shift().split(column_separator);
         let result = [];
+        let max = 0;
         for (let row_txt of rows) {
             let trimmed_row = row_txt.trim();
             if (!trimmed_row) {
@@ -299,10 +442,32 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
                 data[key] = val;
                 count++;
             }
+            if ('id' in data && data.id > max) {
+                max = data.id;
+            }
             result.push(data);
         }
+        sequences[table_name] = max;
         return result;
     };
+
+
+    let parse_tsv_table_text = (table_text, row_separator = default_row_separator, column_separator = default_column_separator, quote_char = default_quote_char) => {
+        let trimmed = table_text.trim();
+        let rows = trimmed.split(row_separator);
+        let table_name = rows.shift().trim();
+        sequences = {};
+        let values = parse_table_rows(table_name, rows, column_separator, quote_char);
+        data[table_name] = values;
+    }
+
+
+    let parse_multitable_tsv_text = (text, table_separator = default_table_separator, row_separator = default_row_separator, column_separator = default_column_separator, quote_char = default_quote_char) => {
+        let tables_text_arr = text.trim().split(table_separator);
+        for (table_text of tables_text_arr) {
+            parse_tsv_table_text(table_text, row_separator, column_separator, quote_char);
+        }
+    }
 
 
     let upload_input_onchange = () => {
@@ -320,14 +485,13 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
             let txt_data = reader.result;
             let tmp = null;
             try {
-                replace_tasks(JSON.parse(txt_data));
+                data = JSON.parse(txt_data);
                 log('sucess loading json');
-                log(data.tasks);
 
             } catch (e) {
-                replace_tasks(tsv_text_parse(txt_data));
+                parse_multitable_tsv_text(txt_data)
+                rebuild_indexes()
                 log('sucess loading tsv');
-                log(data.tasks);
             }
             rebuild_data_div();
         };
@@ -354,7 +518,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
 
     let save_to_url_get_param = () => {
-        let tsv = generate_tasks_tsv_string(default_quote_char, default_column_separator);
+        let tsv = generate_tsv_text(default_quote_char, default_column_separator);
         let b64 = compressToBase64(tsv);
         document.URL
         window.history.pushState("", "", `?data=${b64}`);
@@ -479,16 +643,30 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     };
 
 
-    let add_child_task = (parent_div, parent_task) => {
-        let parent_id = parent_task.id;
+    let add_child_task = (task_obj, parent_task_id, before) => {
         let new_child_task = new_task({
-            id: ++max_id,
-            parent_id: parent_id,
-            name: `child of ${parent_id} name`,
-            description: `child of ${parent_id} description`,
+            parent_id: parent_task_id,
+            name: `child of ${parent_task_id} name`,
+            description: `child of ${parent_task_id} description`,
         });
-        data.tasks.push(new_child_task);
+        for (let key in task_obj) {
+            new_child_task[key] = task_obj[key];
+        }
+        if (before) {
+            [].inse
+            data.tasks.unshift(new_child_task);
+
+        } else {
+            data.tasks.push(new_child_task);
+        }
+
         add_task_to_index(new_child_task);
+        return new_child_task;
+    };
+
+
+    let add_child_task_and_div = (parent_div, parent_task) => {
+        let new_child_task = add_child_task({}, parent_task.id);
         make_sub_div(new_child_task, parent_div, true);
     };
 
@@ -526,6 +704,23 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
     };
 
 
+    let make_child_of_previous = (container, task) => {
+        let previous_div = container.previousSibling;
+        if (!previous_div) {
+            log('there is no previous sibling we can become hild of');
+            return
+        }
+
+        let previous_task_id = parseInt(previous_div.dataset.task_id);
+        let previous_task_obj = task_id_to_task[previous_task_id];
+        let previous_children_div = previous_div.querySelector('div.children');
+        container.parentElement.removeChild(container);
+        previous_children_div.appendChild(container)
+        task.parent_id = previous_task_id;
+        rebuild_indexes();
+    };
+
+
     let hide_show_children = function () {
         // 'this' is the button, first parent is the form_div, second parent is the container_div
         let container_div = this.parentElement.parentElement;
@@ -540,14 +735,14 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
         }
     }
 
-    let focus_task = (button, element) => {
+    let highlight_task = (button, element) => {
         let cl = element.classList;
-        if (cl.contains('focus')) {
-            button.value = 'focus task';
+        if (cl.contains('highlight')) {
+            button.value = 'highlight task';
         } else {
-            button.value = 'unfocus task';
+            button.value = 'disable highlight';
         }
-        cl.toggle('focus');
+        cl.toggle('highlight');
     }
 
 
@@ -615,6 +810,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
         if (how_much_time_actually_passed_ms >= how_much_we_should_wait_ms) {
             let old_value = task_obj[field_name];
             let new_value = task_obj[field_name] = input_element.value;
+            task_obj.last_update_date = Date.now();
             log(`task.'${field_name}' changed from '${old_value}' to '${new_value}'`)
             update_timeouts[id] = null;
             return;
@@ -624,7 +820,6 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
 
     let update_after_timeout = (task_obj, field_name, input_element, sleep_msecs) => {
-        log(get_path(input_element));
         let id = task_obj.id;
         let cur_timeout = update_timeouts[id];
         let now = Date.now();
@@ -638,18 +833,53 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
         }
     }
 
+    let delete_task = (div, task_to_delete) => {
+        let tasks = data.tasks;
+        let index = tasks.indexOf(task_to_delete);
+        // removes 1 element starting at index 'index'
+        tasks.splice(index, 1)
+        // for now lets just rebuild the indexes, its easier than otherwise
+
+        let divpath = get_path(div);
+        let parentpath = get_path(div.parentElement)
+        log('will now remove ' + divpath + ' from ' + parentpath);
+        div.parentElement.removeChild(div);
+        rebuild_indexes();
+        log('deleted task ' + task_to_delete.id)
+    }
+
+
+    let delete_task_dialog = (div, task) => {
+        let = do_delete = confirm(`are you sure you want to dele task ${task.id} (name:${task.name}; description:${task.description})?`);
+        let cancel_msg = 'no task was deleted';
+        if (!do_delete) {
+            log(cancel_msg);
+            return;
+        }
+
+        let children = task_id_to_children[task.id] ?? null;
+        if (children && children.length > 0) {
+            do_delete = confirm(`task ${task.id} has ${children.length} children. this will also delete them all. are you sure?`);
+            if (!do_delete) {
+                logalert('no task was deleted');
+                return
+            }
+        }
+
+        delete_task(div, task);
+
+    }
+
 
     let make_sub_div = (task_obj, parent_div, insert_before = false) => {
         let id = task_obj.id;
         log('create card for task ' + id);
-        if (id > max_id) {
-            max_id = id;
-        }
         let container_div_id = id_container_div_prefix + id;
         let form_id = id_form_div_prefix + id;
         let container_div = create_and_add_child(parent_div, 'div', {
             id: container_div_id,
         }, null, null, insert_before);
+        container_div.dataset.task_id = id;
 
         let classList = container_div.classList;
         classList.add('idented');
@@ -684,14 +914,17 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
             onkeyup: function () { update_after_timeout(task_obj, 'description', this, default_sleep_msecs) },
         });
 
-        let focus_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
+        // let focus_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
+        let highlight_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'highlight task', onclick: () => highlight_task(highlight_button, container_div) }, ['margin5px']);
         let hide_show_children_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'hide child tasks', onclick: hide_show_children }, ['margin5px']);
-        let add_child_task_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'add child task', onclick: () => add_child_task(children_div, task_obj) }, ['margin5px']);
+        let add_child_task_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'add child task', onclick: () => add_child_task_and_div(children_div, task_obj) }, ['margin5px']);
+        let delete_task_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'delete task', onclick: () => delete_task_dialog(container_div, task_obj) }, ['margin5px']);
         let reparent_task_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'reparent task', onclick: () => reparent_task_prompt(task_obj) }, ['margin5px']);
-        let make_sibling_of_parent_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'make sibling of parent', onclick: () => make_sibling_of_parent(task_obj) }, ['margin5px']);
+        let make_sibling_of_parent_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'move left', onclick: () => make_sibling_of_parent(task_obj) }, ['margin5px']);
+        let make_child_of_previous_sibling_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'move right', onclick: () => make_child_of_previous(container_div, task_obj) }, ['margin5px']);
         // unimplemented
-        let go_up_on_list_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'go up on list', onclick: () => go_up_on_list(task_obj) }, ['margin5px']);
-        let go_down_on_list_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'go down on list', onclick: () => go_down_on_list(task_obj) }, ['margin5px']);
+        let go_up_on_list_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'move up', onclick: () => go_up_on_list(task_obj) }, ['margin5px', 'up']);
+        let go_down_on_list_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'move down', onclick: () => go_down_on_list(task_obj) }, ['margin5px']);
         // delete (reparent children to grandparent)
         // delete (with children)
 
@@ -719,9 +952,9 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
 
     let clear_tasks = () => {
+        sequences.tasks = 0;
         replace_tasks(
             [new_task({
-                id: 1,
                 parent_id: 0,
                 name: 'root task name',
                 description: 'root task description',
@@ -733,6 +966,12 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
         clear_tasks();
         rebuild_data_div();
     }
+
+
+    let add_root_task = () => {
+        add_child_task({}, 0, true);
+        rebuild_data_div();
+    };
 
 
     let rebuild_menu_div = () => {
@@ -751,7 +990,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
         let load_from_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from url', onclick: load_from_url_and_rebuild }, ['margin5px']);
 
-        let load_from_cookies_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from cookies', onclick: load_from_cookies }, ['margin5px']);
+        // let load_from_cookies_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from cookies', onclick: load_from_cookies }, ['margin5px']);
 
         let load_from_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from local storage', onclick: load_from_local_storage }, ['margin5px']);
 
@@ -763,7 +1002,7 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
         // load from indexeddb
 
-        let buttons_separator = create_and_add_child(menu_div, 'br');
+        let buttons_separator_0 = create_and_add_child(menu_div, 'br');
 
         let save_to_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to url', onclick: save_to_url_get_param }, ['margin5px']);
 
@@ -771,17 +1010,21 @@ This source file is purposefully not minified or obfuscated in any way. Instead 
 
         // let save_to_cachestorage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to cachestorage', onclick: () => save_to_cachestorage(0) });
 
-        let save_to_cookies_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to cookies', onclick: save_to_cookies }, ['margin5px']);
+        // let save_to_cookies_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to cookies', onclick: save_to_cookies }, ['margin5px']);
 
         let save_to_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to local storage', onclick: save_to_local_storage }, ['margin5px']);
 
-        let save_to_indexeddb_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to indexeddb', onclick: () => save_to_indexeddb(0) }, ['margin5px']);
+        // let save_to_indexeddb_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to indexeddb', onclick: () => save_to_indexeddb(0) }, ['margin5px']);
 
         let download_json_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download json', onclick: download_json }, ['margin5px']);
 
         let download_tsv_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download tsv', onclick: download_tsv }, ['margin5px']);
 
-        /**/create_and_add_child(root_div, 'span', { textContent: 'id_root_div' }, null, null, true);
+        let buttons_separator_1 = create_and_add_child(menu_div, 'br');
+
+        let add_root_task_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'add root task', onclick: add_root_task }, ['margin5px']);
+
+        // add root children
     };
 
 
