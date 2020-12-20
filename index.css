@@ -3,23 +3,36 @@
     /* 8k width */
     width: 7680px; 
 }
+
 div.card{
-    /* opacity: 1; */
-    background-color: #00000030;
+    background-color: #cc99ff;
     margin: 5px 5px 5px 5px;
-    border-radius: 20px
 }
+
 div.idented{
-/* 
-    border: 1px solid black;
-    
-    background-color: #808080;
-*/
-margin-left: 20px;
+    margin-left: 20px;
 }
-/* .odd_row{
-    background-color: #808080;
+
+div.pad10px{
+    padding: 5px;
 }
-.even_row{
-    background-color: #C0C0C0;
-} */
+
+.focus{
+    background-color: #FFFF00;
+}
+
+textarea{
+    border: none;
+}
+
+input{
+    border: none;
+}
+
+.margin5px{
+    margin: 5px 5px 5px 5px;
+}
+
+input:hover, textarea:hover, button:hover, input:focus, textarea:focus, button:focus{
+    outline: none;
+}
