@@ -404,7 +404,7 @@
     }
 
 
-    let generate_tsv_text = (quote_char = default_quote_char, column_separator = default_column_separator) => {
+    let generate_multitable_tsv_text = (quote_char = default_quote_char, column_separator = default_column_separator) => {
         let str = '';
         for (let table_name in data) {
             str = str + table_name + default_row_separator;
@@ -431,7 +431,7 @@
 
 
     let download_tsv = (quote_char = default_quote_char, column_separator = default_column_separator) => {
-        let str = generate_tsv_text(quote_char, column_separator);
+        let str = generate_multitable_tsv_text(quote_char, column_separator);
         download_string('db.tsv', str);
     }
 
@@ -534,7 +534,7 @@
 
 
     let save_to_url_get_param = () => {
-        let tsv = generate_tsv_text(default_quote_char, default_column_separator);
+        let tsv = generate_multitable_tsv_text(default_quote_char, default_column_separator);
         let b64 = compressToBase64(tsv);
         document.URL
         window.history.pushState("", "", `?data=${b64}`);
@@ -648,13 +648,17 @@
 
 
     let save_to_local_storage = () => {
-        localStorage.setItem("data", JSON.stringify(data.tasks));
+        let tsv = generate_multitable_tsv_text(default_quote_char, default_column_separator);
+        let b64 = compressToBase64(tsv);
+        localStorage.setItem("data", b64);
         log('saved to local storage');
     };
 
 
     let load_from_local_storage = () => {
-        replace_tasks(JSON.parse(localStorage.getItem("data")));
+        let tsv = decompressFromBase64(localStorage.getItem("data"));
+        parse_multitable_tsv_text(tsv);
+        rebuild_indexes();
         rebuild_data_div()
     };
 
