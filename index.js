@@ -1287,8 +1287,12 @@
 
         // let load_from_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from local storage', onclick: load_from_local_storage_and_rebuild_div }, ['margin5px']);
 
-        let site_link = create_and_add_child(menu_div, 'a', { href: 'https://gnumaru.github.io/simpletaskmanager/', innerText: 'https://gnumaru.github.io/simpletaskmanager/' });
+        let url = 'https://gnumaru.github.io/simpletaskmanager/';
+        let site_link = create_and_add_child(menu_div, 'a', { href: url, innerText: 'App: ' + url });
+        create_and_add_child(menu_div, 'br');
 
+        url = 'https://github.com/Gnumaru/simpletaskmanager';
+        let code_link = create_and_add_child(menu_div, 'a', { href: url, innerText: 'Code: ' + url });
         create_and_add_child(menu_div, 'br');
 
         let upload_data_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load data file', onclick: upload_file }, ['margin5px']);
