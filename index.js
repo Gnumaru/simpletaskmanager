@@ -2,6 +2,7 @@
 (() => {
     let document = window.document;
     let body = document.body;
+    let styleSheets = document.styleSheets;
     let localStorage = window.localStorage;
 
     let websqldb = null;
@@ -15,6 +16,10 @@
         tasks: null,
         // hold the statuses names
         statuses: null,
+        // hold the possible task types, like bug fixing or new feature implementation
+        types: null,
+        // hold the possible task priorities, like low, medium, high or blocking
+        priorities: null,
         // hold the roles names
         roles: null,
         // hold the assignees names
@@ -26,29 +31,31 @@
         // miscelaneous table, holding things like application configuration
         other: null,
     };
+    let schema = {
+        tasks: [
+
+        ],
+    }
     let update_timeouts = {};
     let translations = {};
 
     let id_container_div_prefix = 'id_container_div_';
     let id_form_div_prefix = 'id_form_div_';
     let id_children_div_prefix = 'id_children_div_';
-    let default_table_separator = '\r';
+    let default_table_separator = '\n\n';
     let default_row_separator = '\n';
     let default_column_separator = '\t';
     let default_quote_char = '"';
     let sequences = {};
     // timeout used to save the input data to its task object. instead of saving every keypress, we only save after one second passed since the last keyup event
-    let default_sleep_msecs = 1000;
+    let default_sleep_msecs = 500;
+    let save_timeout = null;
 
     // search indexes
     // maps a task int id to all its children task objects
     let task_id_to_children = null;
     // maps a given int id to its task object
     let task_id_to_task = null;
-
-    let prompt = window.prompt;
-    let confirm = window.confirm;
-    let log = console.log;
 
     data.statuses = [
         {
@@ -63,6 +70,38 @@
         }, {
             id: 4,
             name: 'Done',
+        }
+    ];
+
+    data.types = [
+        {
+            id: 1,
+            name: 'New Feature',
+        }, {
+            id: 2,
+            name: 'Improvement',
+        }, {
+            id: 3,
+            name: 'Bug Fixing',
+        }, {
+            id: 4,
+            name: 'Testing',
+        }
+    ];
+
+    data.priorities = [
+        {
+            id: 1,
+            name: 'Low',
+        }, {
+            id: 2,
+            name: 'Medium',
+        }, {
+            id: 3,
+            name: 'High',
+        }, {
+            id: 4,
+            name: 'Blocking',
         }
     ];
 
@@ -160,11 +199,23 @@
 
 
 
+    let prompt = window.prompt;
+
+
+    let confirm = window.confirm;
+
+
+    let log = console.log;
+
+
     let identity = (i) => i;
+
 
     let new_date = (i) => new Date(i);
 
+
     let new_date_ms = (i) => new Date(i).valueOf();
+
 
     let logalert = (msg) => {
         log(msg);
@@ -177,15 +228,30 @@
     }
 
 
-    let new_task = (overrides) => {
+    let new_task = (overrides, skip_sequence_increment = false) => {
+        let new_id = 0;
+        if (!skip_sequence_increment) {
+            new_id = ++sequences.tasks;
+        }
         let now_ms = Date.now();
         let new_task_obj = {
             // indexes should come before anything else
-            id: ++sequences.tasks,
+            // autoincrementing primary key
+            id: new_id,
+            // foreign key to the parent task
             parent_id: 0,
+            // foreign key to 'assignees'
             assignee_id: 0,
+            // foreign key to 'roles'
             role_id: 0,
+            // foreign key to 'statuses'
             status_id: 0,
+            // foreign key to 'types'
+            type_id: 0,
+            // foreign key to 'priorities'
+            priority_id: 0,
+            // rendering order in list like views, like table and hierarchical views
+            order: 0,
 
             // dates should be stored as int unix timestamps, like those returned by Date.now() or the (new Date()).valueOf()
             creation_date: now_ms,
@@ -198,11 +264,26 @@
             description: '',
         }
 
-        for (let key in overrides) {
-            new_task_obj[key] = overrides[key];
+        if (overrides) {
+            for (let key in overrides) {
+                new_task_obj[key] = overrides[key];
+            }
         }
 
         return new_task_obj;
+    }
+
+    let new_register = {
+        tasks: new_task,
+    };
+
+    let task_compare_by_order = (left_task, right_task) => {
+        if (left_task.order > right_task.order) {
+            return 1;
+        } else if (left_task.order < right_task.order) {
+            return -1
+        }
+        return 1;
     }
 
 
@@ -366,6 +447,7 @@
     let load_from_url_get_param = () => {
         let get_params = window.location.search
         if (!get_params) {
+            log('tried to load from url get request parameter but no data was found')
             return;
         }
         get_params = get_params.substr(1)
@@ -440,21 +522,35 @@
 
 
     let parse_table_rows = (table_name, rows, column_separator = default_column_separator, quote_char = default_quote_char) => {
+        if (!rows || rows.length < 1) {
+            return [];
+        }
         let head = rows.shift().split(column_separator);
+        while (!head) {
+            head = rows.shift().split(column_separator);
+        }
         let result = [];
         let max = 0;
         for (let row_txt of rows) {
             let trimmed_row = row_txt.trim();
             if (!trimmed_row) {
-                // skip empty lines in the file
+                // skip any empty lines that may appear in the table text
                 continue;
             }
+            // let data = Object.assign({}, schema[table_name]);
             let data = {};
+            if (table_name == 'tasks') {
+                data = new_task(null, false);
+            }
             let row_arr = trimmed_row.split(column_separator);
             let count = 0;
             for (let key of head) {
-                let val = row_arr[count];
-                val = JSON.parse(val)
+                let val = row_arr[count] ?? '';
+                try {
+                    val = JSON.parse(val);
+                } catch (e) {
+                    val = JSON.parse(`"${val}"`);
+                }
                 data[key] = val;
                 count++;
             }
@@ -472,14 +568,27 @@
         let trimmed = table_text.trim();
         let rows = trimmed.split(row_separator);
         let table_name = rows.shift().trim();
-        sequences = {};
+        while (!table_name) {
+            table_name = rows.shift().trim();
+        }
         let values = parse_table_rows(table_name, rows, column_separator, quote_char);
         data[table_name] = values;
     }
 
 
+    let prepare_tsv_text_for_processing = (text) => {
+        text = text.trim();
+        text = text.replace(/\r\n/g, '\n');
+        text = text.replace(/\r/g, '\n');
+        text = text.replace(/\t+/g, '\t');
+        text = text.replace(/\t\n/g, '\n');
+        return text;
+    }
+
+
     let parse_multitable_tsv_text = (text, table_separator = default_table_separator, row_separator = default_row_separator, column_separator = default_column_separator, quote_char = default_quote_char) => {
-        let tables_text_arr = text.trim().split(table_separator);
+        let tables_text_arr = prepare_tsv_text_for_processing(text).split(table_separator);
+        sequences = {};
         for (table_text of tables_text_arr) {
             parse_tsv_table_text(table_text, row_separator, column_separator, quote_char);
         }
@@ -487,6 +596,7 @@
 
 
     let upload_input_onchange = () => {
+        log('loading file');
         let files = upload_input.files;
         if (!files) {
             return;
@@ -495,7 +605,6 @@
         if (!file) {
             return;
         }
-        log(file);
         let reader = new FileReader();
         reader.onload = (evt) => {
             let txt_data = reader.result;
@@ -510,6 +619,8 @@
                 log('sucess loading tsv');
             }
             rebuild_data_div();
+            // we need to reset the input so that when selecting the same file the onchage event will be triggered again
+            upload_input.value = ''
         };
         reader.readAsBinaryString(file);
     };
@@ -522,6 +633,7 @@
             upload_input.onchange = upload_input_onchange;
         }
         upload_input.click();
+        // File chooser dialog can only be shown with a user activation.
     }
 
 
@@ -656,24 +768,38 @@
 
 
     let load_from_local_storage = () => {
-        let tsv = decompressFromBase64(localStorage.getItem("data"));
+        let compressed = localStorage.getItem("data");
+        if (!compressed) {
+            log('tried to load from local storage but no data was found')
+            return;
+        }
+        let tsv = decompressFromBase64(compressed);
         parse_multitable_tsv_text(tsv);
         rebuild_indexes();
-        rebuild_data_div()
     };
+
+    let load_from_local_storage_and_rebuild_div = () => {
+        load_from_local_storage();
+        rebuild_data_div;
+    }
+
+
+    let save_to_url_and_local_storage = () => {
+        save_to_url_get_param();
+        save_to_local_storage();
+    }
 
 
     let add_child_task = (task_obj, parent_task_id, before) => {
         let new_child_task = new_task({
             parent_id: parent_task_id,
-            name: `child of ${parent_task_id} name`,
-            description: `child of ${parent_task_id} description`,
+            // name: `child of ${parent_task_id} name`,
+            // description: `child of ${parent_task_id} description`,
         });
         for (let key in task_obj) {
             new_child_task[key] = task_obj[key];
         }
         if (before) {
-            [].inse
             data.tasks.unshift(new_child_task);
 
         } else {
@@ -731,7 +857,7 @@
             return
         }
 
-        let previous_task_id = parseInt(previous_div.dataset.task_id);
+        let previous_task_id = parseInt(previous_div.extra_data.task.id);
         let previous_task_obj = task_id_to_task[previous_task_id];
         let previous_children_div = previous_div.querySelector('div.children');
         container.parentElement.removeChild(container);
@@ -772,9 +898,16 @@
         if (!previous_container) {
             return
         }
+        task_obj.order;
         let parent_child_div = container_div.parentElement; // parentNode
         parent_child_div.removeChild(container_div);
         parent_child_div.insertBefore(container_div, previous_container);
+
+        let other_task = previous_container.extra_data.task;
+        let old_order = task_obj.order;
+        task_obj.order = other_task.order;
+        other_task.order = old_order;
+        log(data.tasks);
     }
 
 
@@ -791,6 +924,12 @@
         let parent_child_div = container_div.parentElement; // parentNode
         parent_child_div.removeChild(container_div);
         parent_child_div.insertBefore(container_div, next_next_container);
+
+        let other_task = next_container.extra_data.task;
+        let old_order = task_obj.order;
+        task_obj.order = other_task.order;
+        other_task.order = old_order;
+        log(data.tasks);
     }
 
 
@@ -822,6 +961,33 @@
     };
 
 
+    let recursive_save_check = (how_much_we_should_wait_ms) => {
+        let before = save_timeout;
+        let now = Date.now();
+        let how_much_time_actually_passed_ms = now - before;
+        if (how_much_time_actually_passed_ms >= how_much_we_should_wait_ms) {
+            save_to_url_and_local_storage();
+            save_timeout = null;
+            return;
+        }
+        let diff = how_much_we_should_wait_ms - how_much_time_actually_passed_ms;
+        setTimeout(() => recursive_update_check(diff), diff);
+    };
+
+
+    let save_after_timeout = (sleep_msecs) => {
+        let now = Date.now();
+        if (!save_timeout) {
+            // if there is no timeout running, set the time and call the function
+            save_timeout = now;
+            setTimeout(() => recursive_save_check(sleep_msecs), sleep_msecs);
+        } else {
+            // if there is already a timeout running, just reset the time
+            save_timeout = now;
+        }
+    }
+
+
     let recursive_update_check = (task_obj, field_name, input_element, how_much_we_should_wait_ms, func) => {
         let id = task_obj.id;
         let before = update_timeouts[id];
@@ -831,11 +997,20 @@
             let old_value = task_obj[field_name];
             let new_value = task_obj[field_name] = func(input_element.value);
             task_obj.last_update_date = Date.now();
-            log(`task.'${field_name}' changed from '${old_value}' to '${new_value}'`)
+            let old_value_subs = String(old_value).substr(0, 10);
+            if (String(old_value).length > old_value_subs.length) {
+                old_value_subs += ' ...';
+            }
+            let new_value_subs = String(new_value).substr(0, 10);
+            if (String(new_value).length > new_value_subs.length) {
+                new_value_subs += ' ...';
+            }
+            log(`task.${field_name} changed from '${old_value_subs}' to '${new_value_subs}'`)
             update_timeouts[id] = null;
+            save_after_timeout(default_sleep_msecs);
             return;
         }
-        setTimeout((diff) => recursive_update_check(task_obj, field_name, input_element, how_much_we_should_wait_ms - how_much_time_actually_passed_ms, func), how_much_we_should_wait_ms);
+        setTimeout(() => recursive_update_check(task_obj, field_name, input_element, how_much_we_should_wait_ms - how_much_time_actually_passed_ms, func), how_much_we_should_wait_ms);
     }
 
 
@@ -870,7 +1045,7 @@
 
 
     let delete_task_dialog = (div, task) => {
-        let = do_delete = confirm(`are you sure you want to dele task ${task.id} (name:${task.name}; description:${task.description})?`);
+        let do_delete = confirm(`are you sure you want to dele task ${task.id} (name:${task.name}; description:${task.description})?`);
         let cancel_msg = 'no task was deleted';
         if (!do_delete) {
             log(cancel_msg);
@@ -891,7 +1066,7 @@
     }
 
 
-    let add_select_options = (select, options) => {
+    let add_select_options = (select, options, selected_index) => {
         create_and_add_child(select, 'option', {
             value: 0,
             innerText: '-',
@@ -902,6 +1077,10 @@
                 innerText: option.name,
             });
         }
+        if (selected_index != 0) {
+            let a = 0;
+        }
+        select.selectedIndex = selected_index;
     }
 
 
@@ -912,8 +1091,8 @@
         let form_id = id_form_div_prefix + id;
         let container_div = create_and_add_child(parent_div, 'div', {
             id: container_div_id,
+            extra_data: { task: task_obj },
         }, null, null, insert_before);
-        container_div.dataset.task_id = id;
 
         let classList = container_div.classList;
         classList.add('idented');
@@ -931,7 +1110,6 @@
         let current_form = create_and_add_child(form_div, 'div', { id: form_id });
 
         let label_name = create_and_add_child(current_form, 'label', { textContent: 'Name:' });
-        // let input_name = create_and_add_child(current_form, 'input', { type: 'text', value: task_obj.name });
         let input_name = create_and_add_child(current_form, 'textarea', {
             type: 'text',
             value: task_obj.name,
@@ -943,7 +1121,7 @@
         let input_description = create_and_add_child(current_form, 'textarea', {
             type: 'text',
             value: task_obj.description,
-            rows: 1,
+            rows: 2,
             cols: 40,
             onkeyup: function () { update_after_timeout(task_obj, 'description', this, default_sleep_msecs) },
         });
@@ -964,19 +1142,31 @@
         let select_asignee = create_and_add_child(current_form, 'select', {
             onchange: function () { update_after_timeout(task_obj, 'assignee_id', this, default_sleep_msecs, parseInt) },
         });
-        add_select_options(select_asignee, data.assignees);
+        add_select_options(select_asignee, data.assignees, task_obj.assignee_id);
 
         let label_select_role = create_and_add_child(current_form, 'label', { textContent: 'Role:' });
         let select_role = create_and_add_child(current_form, 'select', {
             onchange: function () { update_after_timeout(task_obj, 'role_id', this, default_sleep_msecs, parseInt) },
         });
-        add_select_options(select_role, data.roles);
+        add_select_options(select_role, data.roles, task_obj.role_id);
 
         let label_select_status = create_and_add_child(current_form, 'label', { textContent: 'Status:' });
         let select_status = create_and_add_child(current_form, 'select', {
             onchange: function () { update_after_timeout(task_obj, 'status_id', this, default_sleep_msecs, parseInt) },
         });
-        add_select_options(select_status, data.statuses);
+        add_select_options(select_status, data.statuses, task_obj.status_id);
+
+        let label_select_type = create_and_add_child(current_form, 'label', { textContent: 'Type:' });
+        let select_type = create_and_add_child(current_form, 'select', {
+            onchange: function () { update_after_timeout(task_obj, 'type_id', this, default_sleep_msecs, parseInt) },
+        });
+        add_select_options(select_type, data.types, task_obj.type_id);
+
+        let label_select_priority = create_and_add_child(current_form, 'label', { textContent: 'Priority:' });
+        let select_priority = create_and_add_child(current_form, 'select', {
+            onchange: function () { update_after_timeout(task_obj, 'priority_id', this, default_sleep_msecs, parseInt) },
+        });
+        add_select_options(select_priority, data.priorities, task_obj.priority_id);
 
         // let focus_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
         let highlight_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'highlight task', onclick: () => highlight_task(highlight_button, container_div) }, ['margin5px']);
@@ -998,7 +1188,11 @@
         classList.add('children');
 
         let child_tasks = task_id_to_children[id] ?? []; // tasks.filter((i) => 'parent_id' in i && i.parent_id == task_obj.id);
-        for (let child_task of child_tasks) {
+        let ordered_child_tasks = child_tasks.slice().sort(task_compare_by_order);
+        let order = 0;
+        for (let child_task of ordered_child_tasks) {
+            // fix order while assembling page
+            child_task.order = ++order;
             make_sub_div(child_task, children_div)
         }
     };
@@ -1008,8 +1202,14 @@
         data_div.innerHTML = null;
 
         let root_tasks = task_id_to_children[0]; // tasks.filter((i) => i.parent_id < 1);
+        if (!root_tasks) {
+            return;
+        }
 
-        for (let root_task of root_tasks) {
+        let ordered_root_tasks = root_tasks.slice().sort(task_compare_by_order);
+        let order = 0;
+        for (let root_task of ordered_root_tasks) {
+            root_task.order = ++order;
             make_sub_div(root_task, data_div)
         }
     }
@@ -1017,18 +1217,23 @@
 
     let clear_tasks = () => {
         sequences.tasks = 0;
-        replace_tasks(
-            [new_task({
-                parent_id: 0,
-                name: 'root task name',
-                description: 'root task description',
-            })]);
+        data.tasks = [];
+        rebuild_indexes();
         window.history.pushState('', '', '');
     }
 
 
-    let clear_tasks_and_rebuild_data_div = () => {
+    let clear_tasks_confirm = () => {
+        let do_delete = confirm(`are you sure you want to delete all tasks?`);
+        if (!do_delete) {
+            return;
+        }
         clear_tasks();
+    }
+
+
+    let clear_tasks_and_rebuild_data_div = () => {
+        clear_tasks_confirm();
         rebuild_data_div();
     }
 
@@ -1037,6 +1242,29 @@
         add_child_task({}, 0, true);
         rebuild_data_div();
     };
+
+
+    let toggle_overflow = () => {
+        for (let sheet of styleSheets) {
+            for (let rule of sheet.cssRules) {
+                if (rule.selectorText == '.force_scroll') {
+                    let old_overflow = rule.style.overflow;
+
+                    if (old_overflow == 'scroll') {
+                        rule.style.overflow = '';
+                        rule.style.width = ''
+
+                    } else {
+                        rule.style.overflow = 'scroll';
+                        // 7680 is the 8k resolution width
+                        rule.style.width = '7680px'
+                    }
+
+                    return;
+                }
+            }
+        }
+    }
 
 
     let rebuild_menu_div = () => {
@@ -1053,13 +1281,13 @@
             data_div = create_and_add_child(root_div, 'div', { id: 'id_data_div' });
         }
 
-        let load_from_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from url', onclick: load_from_url_and_rebuild }, ['margin5px']);
+        // let load_from_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from url', onclick: load_from_url_and_rebuild }, ['margin5px']);
 
         // let load_from_cookies_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from cookies', onclick: load_from_cookies }, ['margin5px']);
 
-        let load_from_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from local storage', onclick: load_from_local_storage }, ['margin5px']);
+        // let load_from_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from local storage', onclick: load_from_local_storage_and_rebuild_div }, ['margin5px']);
 
-        let upload_data_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'upload .json/.tsv', onclick: upload_file }, ['margin5px']);
+        let upload_data_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load data file', onclick: upload_file }, ['margin5px']);
 
         let load_fake_tasks_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'generate fake tasks', onclick: load_fake_tasks }, ['margin5px']);
 
@@ -1069,7 +1297,9 @@
 
         create_and_add_child(menu_div, 'br');
 
-        let save_to_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to url', onclick: save_to_url_get_param }, ['margin5px']);
+        let save_to_url_and_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save data in browser', onclick: save_to_url_and_local_storage }, ['margin5px']);
+
+        // let save_to_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to url', onclick: save_to_url_get_param }, ['margin5px']);
 
         // let save_to_websql_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to websql', onclick: save_to_websql });
 
@@ -1077,21 +1307,27 @@
 
         // let save_to_cookies_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to cookies', onclick: save_to_cookies }, ['margin5px']);
 
-        let save_to_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to local storage', onclick: save_to_local_storage }, ['margin5px']);
+        // let save_to_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to local storage', onclick: save_to_local_storage }, ['margin5px']);
 
         // let save_to_indexeddb_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to indexeddb', onclick: () => save_to_indexeddb(0) }, ['margin5px']);
 
-        let download_json_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download json', onclick: download_json }, ['margin5px']);
+        // let download_json_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download json', onclick: download_json }, ['margin5px']);
 
-        let download_tsv_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download tsv', onclick: download_tsv }, ['margin5px']);
+        let download_tsv_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download data file', onclick: download_tsv }, ['margin5px']);
 
         create_and_add_child(menu_div, 'br');
 
         let add_root_task_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'add root task', onclick: add_root_task }, ['margin5px']);
 
+        let toggle_overflow_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'toggle css overflow', onclick: toggle_overflow }, ['margin5px']);
+
+
+
         create_and_add_child(menu_div, 'br');
 
         // let switch_to_hierarchical_view_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'hierarchical view', onclick: switch_to_hierarchical_view }, ['margin5px']);
+
+        // let switch_to_hierarchical_view_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'table view', onclick: switch_to_table_view }, ['margin5px']);
 
         // let switch_to_kanban_view_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'kanban view', onclick: switch_to_kanban_view }, ['margin5px']);
 
@@ -1103,6 +1339,9 @@
 
     let assemble_page = () => {
         load_from_url_get_param();
+        if (!data.tasks) {
+            load_from_local_storage();
+        }
         if (!data.tasks) {
             clear_tasks();
         }
