@@ -1287,25 +1287,19 @@
 
         // let load_from_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from local storage', onclick: load_from_local_storage_and_rebuild_div }, ['margin5px']);
 
-        let url = 'https://gnumaru.github.io/simpletaskmanager/';
-        let site_link = create_and_add_child(menu_div, 'a', { href: url, innerText: 'App: ' + url });
-        create_and_add_child(menu_div, 'br');
-
-        url = 'https://github.com/Gnumaru/simpletaskmanager';
-        let code_link = create_and_add_child(menu_div, 'a', { href: url, innerText: 'Code: ' + url });
-        create_and_add_child(menu_div, 'br');
+        let add_root_task_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'add root task', onclick: add_root_task }, ['margin5px']);
 
         let upload_data_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load data file', onclick: upload_file }, ['margin5px']);
 
-        let load_fake_tasks_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'generate fake tasks', onclick: load_fake_tasks }, ['margin5px']);
+        // let load_fake_tasks_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'generate fake tasks', onclick: load_fake_tasks }, ['margin5px']);
 
-        let clear_tasks_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'clear tasks', onclick: clear_tasks_and_rebuild_data_div }, ['margin5px']);
+
 
         // load from indexeddb
 
-        create_and_add_child(menu_div, 'br');
+        // create_and_add_child(menu_div, 'br');
 
-        let save_to_url_and_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save data in browser', onclick: save_to_url_and_local_storage }, ['margin5px']);
+        // let save_to_url_and_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save data in browser', onclick: save_to_url_and_local_storage }, ['margin5px']);
 
         // let save_to_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'save to url', onclick: save_to_url_get_param }, ['margin5px']);
 
@@ -1323,15 +1317,13 @@
 
         let download_tsv_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download data file', onclick: download_tsv }, ['margin5px']);
 
-        create_and_add_child(menu_div, 'br');
+        // create_and_add_child(menu_div, 'br');
 
-        let add_root_task_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'add root task', onclick: add_root_task }, ['margin5px']);
+        let clear_tasks_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'clear tasks', onclick: clear_tasks_and_rebuild_data_div }, ['margin5px']);
 
         let toggle_overflow_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'toggle css overflow', onclick: toggle_overflow }, ['margin5px']);
 
-
-
-        create_and_add_child(menu_div, 'br');
+        // create_and_add_child(menu_div, 'br');
 
         // let switch_to_hierarchical_view_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'hierarchical view', onclick: switch_to_hierarchical_view }, ['margin5px']);
 
@@ -1342,6 +1334,16 @@
         // let switch_to_gantt_view_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'gantt view', onclick: switch_to_gantt_view }, ['margin5px']);
 
         // add root children
+
+        let url = 'https://gnumaru.github.io/simpletaskmanager/';
+        let site_link = create_and_add_child(menu_div, 'a', { href: url, innerText: 'App: ' + url });
+        // create_and_add_child(menu_div, 'br');
+
+        create_and_add_child(menu_div, 'span', { innerText: ' ' });
+
+        url = 'https://github.com/Gnumaru/simpletaskmanager';
+        let code_link = create_and_add_child(menu_div, 'a', { href: url, innerText: 'Code: ' + url });
+        // create_and_add_child(menu_div, 'br');
     };
 
 
