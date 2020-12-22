@@ -11,6 +11,7 @@
     let root_div = null;
     let menu_div = null;
     let data_div = null;
+    let draft_div = null;
     let data = {
         // hold the task data itself
         tasks: null,
@@ -192,7 +193,7 @@
     data.other = [
         {
             id: 1,
-            name: '',
+            name: 'draft',
             value: '',
         }
     ]
@@ -591,6 +592,10 @@
         sequences = {};
         for (table_text of tables_text_arr) {
             parse_tsv_table_text(table_text, row_separator, column_separator, quote_char);
+        }
+        let draft_area = document.getElementById('draft_area_id');
+        if (draft_area) {
+            draft_area.value = data.other[0].value;
         }
     }
 
@@ -996,7 +1001,9 @@
         if (how_much_time_actually_passed_ms >= how_much_we_should_wait_ms) {
             let old_value = task_obj[field_name];
             let new_value = task_obj[field_name] = func(input_element.value);
-            task_obj.last_update_date = Date.now();
+            if ('last_update_date' in task_obj) {
+                task_obj.last_update_date = Date.now();
+            }
             let old_value_subs = String(old_value).substr(0, 10);
             if (String(old_value).length > old_value_subs.length) {
                 old_value_subs += ' ...';
@@ -1267,6 +1274,21 @@
     }
 
 
+    let prevent_tab_from_getting_out = function (e) {
+        if (e.key == 'Tab') {
+            e.preventDefault();
+            var start = this.selectionStart;
+            var end = this.selectionEnd;
+
+            // set textarea value to: text before caret + tab + text after caret
+            this.value = this.value.substring(0, start) + "\t" + this.value.substring(end);
+
+            // put caret at right position again
+            this.selectionStart = this.selectionEnd = start + 1;
+        }
+    };
+
+
     let rebuild_menu_div = () => {
         if (!root_div) {
             root_div = create_and_add_child(body, 'div', { id: 'id_root_div' });
@@ -1279,6 +1301,10 @@
 
         if (!data_div) {
             data_div = create_and_add_child(root_div, 'div', { id: 'id_data_div' });
+        }
+
+        if (!draft_div) {
+            draft_div = create_and_add_child(root_div, 'div', { id: 'id_draft_div' });
         }
 
         // let load_from_url_get_param_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from url', onclick: load_from_url_and_rebuild }, ['margin5px']);
@@ -1344,6 +1370,17 @@
         url = 'https://github.com/Gnumaru/simpletaskmanager';
         let code_link = create_and_add_child(menu_div, 'a', { href: url, innerText: 'Code: ' + url });
         // create_and_add_child(menu_div, 'br');
+
+
+        let draft_obj = data.other[0];
+        let input_name = create_and_add_child(draft_div, 'textarea', {
+            id: 'draft_area_id',
+            value: draft_obj.value,
+            rows: 51, cols: 230,
+            style: 'border: 1px solid black',
+            onkeyup: function () { update_after_timeout(data.other[0], 'value', this, default_sleep_msecs) },
+            onkeydown: prevent_tab_from_getting_out,
+        });
     };
 
 
