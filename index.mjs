@@ -1,4 +1,3 @@
-// LICENSE: This software is licensed under the terms and conditions specified in the LICENSE file.
 let document = window.document;
 let body = document.body;
 let styleSheets = document.styleSheets;
