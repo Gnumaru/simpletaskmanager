@@ -1,5 +1,5 @@
 // LICENSE: This software is licensed under the terms and conditions specified in the LICENSE file.
-(() => {
+
     let document = window.document;
     let body = document.body;
     let styleSheets = document.styleSheets;
@@ -256,9 +256,9 @@
 
             // dates should be stored as int unix timestamps, like those returned by Date.now() or the (new Date()).valueOf()
             creation_date: now_ms,
-            last_update_date: now_ms,
-            start_date: now_ms,
-            due_date: now_ms,
+            last_update_date: 0,
+            start_date: 0,
+            due_date: 0,
 
             // Every key expecting non string values should be put before the 'name' key. Every key expecting string values should be put after 'name' key. Keys should be grouped by javascript type (number, bool, string). this is for organization purposes only
             name: '',
@@ -359,7 +359,12 @@
 
         if (attributes) {
             for (let key in attributes) {
-                new_el[key] = attributes[key];
+                try {
+                    new_el[key] = attributes[key];
+                } catch (e) {
+                    log(tag_name + ' does not appear to have a settable property called ' + key);
+                    log(e);
+                }
             }
         }
 
@@ -590,7 +595,7 @@
     let parse_multitable_tsv_text = (text, table_separator = default_table_separator, row_separator = default_row_separator, column_separator = default_column_separator, quote_char = default_quote_char) => {
         let tables_text_arr = prepare_tsv_text_for_processing(text).split(table_separator);
         sequences = {};
-        for (table_text of tables_text_arr) {
+        for (let table_text of tables_text_arr) {
             parse_tsv_table_text(table_text, row_separator, column_separator, quote_char);
         }
         let draft_area = document.getElementById('draft_area_id');
@@ -1004,13 +1009,19 @@
             if ('last_update_date' in task_obj) {
                 task_obj.last_update_date = Date.now();
             }
-            let old_value_subs = String(old_value).substr(0, 10);
-            if (String(old_value).length > old_value_subs.length) {
-                old_value_subs += ' ...';
+            let old_value_subs = old_value;
+            if (typeof old_value_subs == 'string' && old_value_subs.length > 10) {
+                old_value_subs = String(old_value).substr(0, 10);
+                if (String(old_value).length > old_value_subs.length) {
+                    old_value_subs += ' ...';
+                }
             }
-            let new_value_subs = String(new_value).substr(0, 10);
-            if (String(new_value).length > new_value_subs.length) {
-                new_value_subs += ' ...';
+            let new_value_subs = new_value;
+            if (typeof new_value_subs == 'string' && new_value_subs.length > 10) {
+                new_value_subs = String(new_value).substr(0, 10);
+                if (String(new_value).length > new_value_subs.length) {
+                    new_value_subs += ' ...';
+                }
             }
             log(`task.${field_name} changed from '${old_value_subs}' to '${new_value_subs}'`)
             update_timeouts[id] = null;
@@ -1078,7 +1089,7 @@
             value: 0,
             innerText: '-',
         });
-        for (option of options) {
+        for (let option of options) {
             create_and_add_child(select, 'option', {
                 value: option.id,
                 innerText: option.name,
@@ -1098,6 +1109,7 @@
         let form_id = id_form_div_prefix + id;
         let container_div = create_and_add_child(parent_div, 'div', {
             id: container_div_id,
+            draggable: "true",
             extra_data: { task: task_obj },
         }, null, null, insert_before);
 
@@ -1118,7 +1130,6 @@
 
         let label_name = create_and_add_child(current_form, 'label', { textContent: 'Name:' });
         let input_name = create_and_add_child(current_form, 'textarea', {
-            type: 'text',
             value: task_obj.name,
             rows: 1, cols: 40,
             onkeyup: function () { update_after_timeout(task_obj, 'name', this, default_sleep_msecs) },
@@ -1126,7 +1137,6 @@
 
         let label_description = create_and_add_child(current_form, 'label', { textContent: 'Description:' });
         let input_description = create_and_add_child(current_form, 'textarea', {
-            type: 'text',
             value: task_obj.description,
             rows: 2,
             cols: 40,
@@ -1136,12 +1146,14 @@
         let label_start_date = create_and_add_child(current_form, 'label', { textContent: 'Start Date:' });
         let input_start_date = create_and_add_child(current_form, 'input', {
             type: 'date',
+            value: (new Date(task_obj.start_date)).toISOString().substr(0, 10),
             onchange: function () { update_after_timeout(task_obj, 'start_date', this, default_sleep_msecs, new_date_ms) },
         });
 
         let label_due_date = create_and_add_child(current_form, 'label', { textContent: 'Due Date:' });
         let input_due_date = create_and_add_child(current_form, 'input', {
             type: 'date',
+            value: (new Date(task_obj.due_date)).toISOString().substr(0, 10),
             onchange: function () { update_after_timeout(task_obj, 'due_date', this, default_sleep_msecs, new_date_ms) },
         });
 
@@ -1405,4 +1417,3 @@
 
 
     main();
-})();
