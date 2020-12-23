@@ -224,6 +224,7 @@ let logalert = msg => {
 
 
 let translate = (identifier, language) => {
+    // TODO: Implement
     return translations[identifier][language] ?? identifier;
 }
 
@@ -287,7 +288,7 @@ let task_compare_by_order = (left_task, right_task) => {
 }
 
 
-let get_id = (task_obj) => {
+let get_id = task_obj => {
     let task_id = task_obj;
     if (typeof task_id == 'object') {
         task_id = task_id.id;
@@ -296,7 +297,7 @@ let get_id = (task_obj) => {
 }
 
 
-let get_task_by_id = (id_int) => {
+let get_task_by_id = id_int => {
     return task_id_to_task[id_int] ?? null;
 }
 
@@ -312,7 +313,7 @@ let is_right_ancestor_of_left = (child_obj, ancestor_obj_id) => {
 }
 
 
-let add_task_to_index = (task) => {
+let add_task_to_index = task => {
     let id = task.id;
     if (id == 99) {
         id = id;
@@ -335,13 +336,13 @@ let rebuild_indexes = () => {
 };
 
 
-let replace_tasks = (new_tasks) => {
+let replace_tasks = new_tasks => {
     data.tasks = new_tasks;
     rebuild_indexes();
 }
 
 
-let years_from_now = (years) => {
+let years_from_now = years => {
     let new_date = new Date();
     new_date.setFullYear(new_date.getFullYear() + years);
     return new_date;
@@ -383,7 +384,7 @@ let create_and_add_child = function (parent_element, tag_name, attributes, css_c
 };
 
 
-let decompressFromBase64 = (base64_string) => {
+let decompressFromBase64 = base64_string => {
     // the line bellow uses standard javascript api
     // let text = atob(base64_string);
 
@@ -394,7 +395,7 @@ let decompressFromBase64 = (base64_string) => {
 };
 
 
-let compressToBase64 = (text) => {
+let compressToBase64 = text => {
     // the line bellow uses standard javascript api
     // let base64_string = btoa(text);
 
@@ -405,7 +406,7 @@ let compressToBase64 = (text) => {
 }
 
 
-let create_fake_tasks = (flat) => {
+let create_fake_tasks = flat => {
     let tasks = [];
     sequences.tasks = 0;
     let start_id = sequences.tasks;
@@ -581,7 +582,7 @@ let parse_tsv_table_text = (table_text, row_separator = default_row_separator, c
 }
 
 
-let prepare_tsv_text_for_processing = (text) => {
+let prepare_tsv_text_for_processing = text => {
     text = text.trim();
     text = text.replace(/\r\n/g, '\n');
     text = text.replace(/\r/g, '\n');
@@ -615,7 +616,7 @@ let upload_input_onchange = () => {
         return;
     }
     let reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = evt => {
         let txt_data = reader.result;
         let tmp = null;
         try {
@@ -666,11 +667,11 @@ let save_to_url_get_param = () => {
 let save_to_websql = () => {
     if (!websqldb) {
         websqldb = openDatabase('data', '1.0', '', 5 * 1024 * 1024);
-        websqldb.transaction((tx) => {
+        websqldb.transaction(tx => {
             tx.executeSql('CREATE TABLE tasks (id unique, name, description);');
         });
     } else {
-        websqldb.transaction((tx) => {
+        websqldb.transaction(tx => {
             tx.executeSql('DROP TABLE tasks;');
             tx.executeSql('CREATE TABLE tasks (id unique, name, description);');
         });
@@ -680,7 +681,7 @@ let save_to_websql = () => {
     for (let task of data.tasks) {
         inserts.push(`INSERT INTO tasks (id, name, description) VALUES (${JSON.stringify(task.id)}, ${JSON.stringify(task.name)}, ${JSON.stringify(task.description)});`)
     }
-    websqldb.transaction((tx) => {
+    websqldb.transaction(tx => {
         for (let insert of inserts) {
             log(insert);
             tx.executeSql(insert);
@@ -689,17 +690,17 @@ let save_to_websql = () => {
 }
 
 
-let save_to_cachestorage = (step) => {
+let save_to_cachestorage = step => {
     log('a');
     switch (step) {
         case 0:
             log('b');
             caches.open('data')
-                .then((cache) => {
+                .then(cache => {
                     log('c');
                     cache.delete('tasks')
                     save_to_cachestorage(1);
-                }).catch((err) => {
+                }).catch(err => {
                     log('error');
                 });
             return;
@@ -707,20 +708,20 @@ let save_to_cachestorage = (step) => {
         case 1:
             log('d');
             caches.open('data')
-                .then((cache) => {
+                .then(cache => {
                     log('e');
                     cache
                         .add("tasks", data.tasks)
                         .then(() => log("tasks saved"))
                         .catch((err) => log(err));
-                }).catch((err) => {
+                }).catch(err => {
                     log('error');
                 })
     }
 };
 
 
-let save_to_indexeddb = (step) => {
+let save_to_indexeddb = step => {
     log('save_to_indexeddb step ' + step);
     switch (step) {
         case 0:
@@ -746,7 +747,7 @@ let save_to_indexeddb = (step) => {
 
         case 1:
             let request = indexedDB.open("data");
-            request.onupgradeneeded = (event) => {
+            request.onupgradeneeded = event => {
                 let db = event.target.result;
                 let objectStore = db.createObjectStore("tasks", { keyPath: "id" });
                 for (let task of data.tasks) {
@@ -837,7 +838,7 @@ let reparent_task = (task_obj, new_parent_id) => {
 };
 
 
-let reparent_task_prompt = (task) => {
+let reparent_task_prompt = task => {
     let new_parent_id = prompt('input the new parent id');
     try {
         new_parent_id = parseInt(new_parent_id.trim());
@@ -849,7 +850,7 @@ let reparent_task_prompt = (task) => {
 };
 
 
-let make_sibling_of_parent = (task) => {
+let make_sibling_of_parent = task => {
     let parent_id = task.parent_id;
     let parent_task = get_task_by_id(parent_id);
     let grandparent_id = parent_task.parent_id;
@@ -876,7 +877,7 @@ let make_child_of_previous = (container, task) => {
 };
 
 
-let toggle_hidden = (element) => {
+let toggle_hidden = element => {
     if (Array.isArray(element)) {
         for (let el of element) {
             toggle_hidden(el);
@@ -896,7 +897,7 @@ let toggle_hidden = (element) => {
 
 let hide_show_children = function () {
     // 'this' is the button, first parent is the form_div, second parent is the container_div
-    let container_div = this.parentElement.parentElement;
+    let container_div = this.parentElement.parentElement.parentElement;
     let children_div = container_div.querySelector('div.children');
     let display = children_div.style.display;
     if (display == 'none') {
@@ -919,7 +920,7 @@ let highlight_task = (button, element) => {
 }
 
 
-let go_up_on_list = (task_obj) => {
+let go_up_on_list = task_obj => {
     let container_div = document.getElementById(id_container_div_prefix + task_obj.id);
     let previous_container = container_div.previousSibling;
     if (!previous_container) {
@@ -938,7 +939,7 @@ let go_up_on_list = (task_obj) => {
 }
 
 
-let go_down_on_list = (task_obj) => {
+let go_down_on_list = task_obj => {
     let container_div = document.getElementById(id_container_div_prefix + task_obj.id);
     let next_container = container_div.nextSibling;
     if (!next_container) {
@@ -960,7 +961,7 @@ let go_down_on_list = (task_obj) => {
 }
 
 
-let count_siblings = (element) => {
+let count_siblings = element => {
     let tag = element.tagName;
     let cnt = 0;
     let previous = element.previousSibling;
@@ -974,7 +975,7 @@ let count_siblings = (element) => {
 }
 
 
-let get_path = (element) => {
+let get_path = element => {
     let path = '';
     let parent = element;
 
@@ -988,7 +989,7 @@ let get_path = (element) => {
 };
 
 
-let recursive_save_check = (how_much_we_should_wait_ms) => {
+let recursive_save_check = how_much_we_should_wait_ms => {
     let before = save_timeout;
     let now = Date.now();
     let how_much_time_actually_passed_ms = now - before;
@@ -1002,7 +1003,7 @@ let recursive_save_check = (how_much_we_should_wait_ms) => {
 };
 
 
-let save_after_timeout = (sleep_msecs) => {
+let save_after_timeout = sleep_msecs => {
     let now = Date.now();
     if (!save_timeout) {
         // if there is no timeout running, set the time and call the function
