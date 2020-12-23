@@ -54,3 +54,7 @@ input[type="button"]{
     width: 16px;
     height: 16px;
 } */
+
+.bold{
+    font-weight: bold;
+}

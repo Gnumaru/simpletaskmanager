@@ -41,6 +41,7 @@ let translations = {};
 let id_container_div_prefix = 'id_container_div_';
 let id_form_div_prefix = 'id_form_div_';
 let id_children_div_prefix = 'id_children_div_';
+let id_name_div_prefix = 'id_name_div_';
 let default_table_separator = '\n\n';
 let default_row_separator = '\n';
 let default_column_separator = '\t';
@@ -207,16 +208,16 @@ let confirm = window.confirm;
 let log = console.log;
 
 
-let identity = (i) => i;
+let identity = i => i;
 
 
-let new_date = (i) => new Date(i);
+let new_date = i => new Date(i);
 
 
-let new_date_ms = (i) => new Date(i).valueOf();
+let new_date_ms = i => new Date(i).valueOf();
 
 
-let logalert = (msg) => {
+let logalert = msg => {
     log(msg);
     alert(msg);
 }
@@ -821,7 +822,7 @@ let add_child_task = (task_obj, parent_task_id, before) => {
 
 let add_child_task_and_div = (parent_div, parent_task) => {
     let new_child_task = add_child_task({}, parent_task.id);
-    make_sub_div(new_child_task, parent_div, true);
+    create_task_container(new_child_task, parent_div, true);
 };
 
 
@@ -873,6 +874,24 @@ let make_child_of_previous = (container, task) => {
     task.parent_id = previous_task_id;
     rebuild_indexes();
 };
+
+
+let toggle_hidden = (element) => {
+    if (Array.isArray(element)) {
+        for (let el of element) {
+            toggle_hidden(el);
+        }
+        return;
+    }
+    let style = element.style;
+    let display = style.display;
+    if (display == 'none') {
+        display = style.display = 'block';
+    } else {
+        display = style.display = 'none';
+    }
+    return display;
+}
 
 
 let hide_show_children = function () {
@@ -996,14 +1015,14 @@ let save_after_timeout = (sleep_msecs) => {
 }
 
 
-let recursive_update_check = (task_obj, field_name, input_element, how_much_we_should_wait_ms, func) => {
+let recursive_update_check = (task_obj, field_name, input_element, how_much_we_should_wait_ms, getter_func, callbacks) => {
     let id = task_obj.id;
     let before = update_timeouts[id];
     let now = Date.now();
     let how_much_time_actually_passed_ms = now - before;
     if (how_much_time_actually_passed_ms >= how_much_we_should_wait_ms) {
         let old_value = task_obj[field_name];
-        let new_value = task_obj[field_name] = func(input_element.value);
+        let new_value = task_obj[field_name] = getter_func(input_element.value);
         if ('last_update_date' in task_obj) {
             task_obj.last_update_date = Date.now();
         }
@@ -1023,21 +1042,30 @@ let recursive_update_check = (task_obj, field_name, input_element, how_much_we_s
         }
         log(`task.${field_name} changed from '${old_value_subs}' to '${new_value_subs}'`)
         update_timeouts[id] = null;
+        if (callbacks) {
+            if (Array.isArray(callbacks)) {
+                for (let callback of callbacks) {
+                    callback();
+                }
+            } else {
+                callbacks();
+            }
+        }
         save_after_timeout(default_sleep_msecs);
         return;
     }
-    setTimeout(() => recursive_update_check(task_obj, field_name, input_element, how_much_we_should_wait_ms - how_much_time_actually_passed_ms, func), how_much_we_should_wait_ms);
+    setTimeout(() => recursive_update_check(task_obj, field_name, input_element, how_much_we_should_wait_ms - how_much_time_actually_passed_ms, getter_func, callbacks), how_much_we_should_wait_ms);
 }
 
 
-let update_after_timeout = (task_obj, field_name, input_element, sleep_msecs, func = identity) => {
+let update_after_timeout = (task_obj, field_name, input_element, sleep_msecs, func = identity, callbacks = null) => {
     let id = task_obj.id;
     let cur_timeout = update_timeouts[id];
     let now = Date.now();
     if (!cur_timeout) {
         // if there is no timeout running, set the time and call the function
         update_timeouts[id] = now;
-        setTimeout(() => recursive_update_check(task_obj, field_name, input_element, sleep_msecs, func), sleep_msecs);
+        setTimeout(() => recursive_update_check(task_obj, field_name, input_element, sleep_msecs, func, callbacks), sleep_msecs,);
     } else {
         // if there is already a timeout running, just reset the time
         update_timeouts[id] = now;
@@ -1100,7 +1128,15 @@ let add_select_options = (select, options, selected_index) => {
 }
 
 
-let make_sub_div = (task_obj, parent_div, insert_before = false) => {
+let create_task_container = (task_obj, parent_div, insert_before = false) => {
+    /*
+    container div
+        current task div
+            name div
+            current form div
+            buttons div
+        children div
+    */
     let id = task_obj.id;
     log('create card for task ' + id);
     let container_div_id = id_container_div_prefix + id;
@@ -1115,22 +1151,35 @@ let make_sub_div = (task_obj, parent_div, insert_before = false) => {
     classList.add('idented');
     classList.add('container');
 
-    let form_div = create_and_add_child(container_div, 'div');
-    classList = form_div.classList;
+    let current_task_div = create_and_add_child(container_div, 'div');
+    classList = current_task_div.classList;
     classList.add('form');
     classList.add('card');
     classList.add('pad10px');
 
 
+    let name_div = create_and_add_child(current_task_div, 'div');
+    let current_form = create_and_add_child(current_task_div, 'div', { id: form_id });
+    let buttons_div = create_and_add_child(current_task_div, 'div');
+    name_div.onclick = () => toggle_hidden([current_form, buttons_div]);
+    toggle_hidden([current_form, buttons_div]);
 
-        /**/let id_span = create_and_add_child(form_div, 'label', { textContent: `Task ${id}` });
-    let current_form = create_and_add_child(form_div, 'div', { id: form_id });
+    let id_span = create_and_add_child(name_div, 'span', { textContent: `#${id}: ` }, ['bold']);
+    let name_span = create_and_add_child(name_div, 'span', {
+        id: id_name_div_prefix + id,
+        textContent: task_obj.name,
+    }, ['bold']);
+
 
     let label_name = create_and_add_child(current_form, 'label', { textContent: 'Name:' });
     let input_name = create_and_add_child(current_form, 'textarea', {
         value: task_obj.name,
         rows: 1, cols: 40,
-        onkeyup: function () { update_after_timeout(task_obj, 'name', this, default_sleep_msecs) },
+        onkeyup: function () {
+            update_after_timeout(task_obj, 'name', this, default_sleep_msecs, identity, () => {
+                document.getElementById(id_name_div_prefix + id).innerText = task_obj.name;
+            })
+        },
     });
 
     let label_description = create_and_add_child(current_form, 'label', { textContent: 'Description:' });
@@ -1185,17 +1234,19 @@ let make_sub_div = (task_obj, parent_div, insert_before = false) => {
     });
     add_select_options(select_priority, data.priorities, task_obj.priority_id);
 
-    // let focus_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
-    let highlight_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'highlight task', onclick: () => highlight_task(highlight_button, container_div) }, ['margin5px']);
-    let hide_show_children_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'hide child tasks', onclick: hide_show_children }, ['margin5px']);
-    let add_child_task_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'add child task', onclick: () => add_child_task_and_div(children_div, task_obj) }, ['margin5px']);
-    let delete_task_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'delete task', onclick: () => delete_task_dialog(container_div, task_obj) }, ['margin5px']);
-    let reparent_task_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'reparent task', onclick: () => reparent_task_prompt(task_obj) }, ['margin5px']);
-    let make_sibling_of_parent_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'move left', onclick: () => make_sibling_of_parent(task_obj) }, ['margin5px']);
-    let make_child_of_previous_sibling_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'move right', onclick: () => make_child_of_previous(container_div, task_obj) }, ['margin5px']);
+
+
+    // let focus_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
+    let highlight_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'highlight task', onclick: () => highlight_task(highlight_button, container_div) }, ['margin5px']);
+    let hide_show_children_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'hide child tasks', onclick: hide_show_children }, ['margin5px']);
+    let add_child_task_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'add child task', onclick: () => add_child_task_and_div(children_div, task_obj) }, ['margin5px']);
+    let delete_task_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'delete task', onclick: () => delete_task_dialog(container_div, task_obj) }, ['margin5px']);
+    let reparent_task_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'reparent task', onclick: () => reparent_task_prompt(task_obj) }, ['margin5px']);
+    let make_sibling_of_parent_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'move left', onclick: () => make_sibling_of_parent(task_obj) }, ['margin5px']);
+    let make_child_of_previous_sibling_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'move right', onclick: () => make_child_of_previous(container_div, task_obj) }, ['margin5px']);
     // unimplemented
-    let go_up_on_list_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'move up', onclick: () => go_up_on_list(task_obj) }, ['margin5px', 'up']);
-    let go_down_on_list_button = create_and_add_child(form_div, 'input', { type: 'button', value: 'move down', onclick: () => go_down_on_list(task_obj) }, ['margin5px']);
+    let go_up_on_list_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'move up', onclick: () => go_up_on_list(task_obj) }, ['margin5px', 'up']);
+    let go_down_on_list_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'move down', onclick: () => go_down_on_list(task_obj) }, ['margin5px']);
     // delete (reparent children to grandparent)
     // delete (with children)
 
@@ -1210,7 +1261,7 @@ let make_sub_div = (task_obj, parent_div, insert_before = false) => {
     for (let child_task of ordered_child_tasks) {
         // fix order while assembling page
         child_task.order = ++order;
-        make_sub_div(child_task, children_div)
+        create_task_container(child_task, children_div)
     }
 };
 
@@ -1227,7 +1278,7 @@ let rebuild_data_div = () => {
     let order = 0;
     for (let root_task of ordered_root_tasks) {
         root_task.order = ++order;
-        make_sub_div(root_task, data_div)
+        create_task_container(root_task, data_div)
     }
 }
 
