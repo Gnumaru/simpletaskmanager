@@ -1,7 +1,10 @@
-let document = window.document;
+// when babel translates to 'var document' it gives an error, so I had to rename it
+let gglobalThis = globalThis ?? window;
+let gdocument = gglobalThis.document;
 let body = document.body;
 let styleSheets = document.styleSheets;
-let localStorage = window.localStorage;
+// when babel translates to 'var localStorage' it gives an error, so I had to rename it
+let glocalStorage = gglobalThis.localStorage;
 
 let websqldb = null;
 let download_anchor = null;
@@ -199,10 +202,10 @@ data.other = [
 
 
 
-let prompt = window.prompt;
+let prompt = gglobalThis.prompt;
 
 
-let confirm = window.confirm;
+let confirm = gglobalThis.confirm;
 
 
 let log = console.log;
@@ -226,6 +229,14 @@ let logalert = msg => {
 let translate = (identifier, language) => {
     // TODO: Implement
     return translations[identifier][language] ?? identifier;
+}
+
+
+let set_style = (element, obj) => {
+    let s = element.style;
+    for (let key in obj) {
+        s[key] = obj[key];
+    }
 }
 
 
@@ -274,9 +285,11 @@ let new_task = (overrides, skip_sequence_increment = false) => {
     return new_task_obj;
 }
 
-let new_register = {
-    tasks: new_task,
-};
+
+// let new_register = {
+//     tasks: new_task,
+// };
+
 
 let task_compare_by_order = (left_task, right_task) => {
     if (left_task.order > right_task.order) {
@@ -359,10 +372,13 @@ let create_and_add_child = function (parent_element, tag_name, attributes, css_c
 
     if (attributes) {
         for (let key in attributes) {
+            if (!key in new_el) {
+                log(tag_name + ' does not appear to have a property called ' + key);
+            }
             try {
                 new_el[key] = attributes[key];
-            } catch (e) {
-                log(tag_name + ' does not appear to have a settable property called ' + key);
+            } catch {
+                log(key + ' does not appear to have a seter on tag ' + tag_name);
                 log(e);
             }
         }
@@ -451,17 +467,25 @@ let create_fake_tasks = flat => {
 
 
 let load_from_url_get_param = () => {
-    let get_params = window.location.search
+    let get_params = gglobalThis.location.search
     if (!get_params) {
         log('tried to load from url get request parameter but no data was found')
         return;
     }
-    get_params = get_params.substr(1)
-    let b64 = get_params.substr(5);
+    get_params = get_params.trim();
+    if (!get_params.startsWith('?data')) {
+        return;
+    }
+    let b64 = get_params.substr(6);
     let tsv = decompressFromBase64(b64);
+    tsv = tsv.trim();
+    if (!tsv) {
+        return;
+    }
     parse_multitable_tsv_text(tsv);
     rebuild_indexes();
 };
+
 
 let load_from_url_and_rebuild = () => {
     load_from_url_get_param();
@@ -522,9 +546,6 @@ let download_tsv = (quote_char = default_quote_char, column_separator = default_
     let str = generate_multitable_tsv_text(quote_char, column_separator);
     download_string('db.tsv', str);
 }
-
-
-
 
 
 let parse_table_rows = (table_name, rows, column_separator = default_column_separator, quote_char = default_quote_char) => {
@@ -619,16 +640,27 @@ let upload_input_onchange = () => {
     reader.onload = evt => {
         let txt_data = reader.result;
         let tmp = null;
+        let success = false;
         try {
             data = JSON.parse(txt_data);
+            success = true;
             log('sucess loading json');
 
         } catch (e) {
-            parse_multitable_tsv_text(txt_data)
-            rebuild_indexes()
-            log('sucess loading tsv');
+            try {
+                parse_multitable_tsv_text(txt_data)
+                rebuild_indexes()
+                success = true;
+                log('sucess loading tsv');
+
+            } catch (e) {
+                log('error reading file');
+            }
         }
-        rebuild_data_div();
+        if (success) {
+            rebuild_data_div();
+            save_to_url_and_local_storage();
+        }
         // we need to reset the input so that when selecting the same file the onchage event will be triggered again
         upload_input.value = ''
     };
@@ -649,7 +681,7 @@ let upload_file = () => {
 
 let save_to_cookies = () => {
     let expire_date = years_from_now(1000);
-    let cookie = ['data=', JSON.stringify(data.tasks), '; domain=', window.location.host.toString().split(':')[0], '; path=/; expires="' + (expire_date.toGMTString()) + '"'].join('');
+    let cookie = ['data=', JSON.stringify(data.tasks), '; domain=', gglobalThis.location.host.toString().split(':')[0], '; path=/; expires="' + (expire_date.toGMTString()) + '"'].join('');
     document.cookie = cookie;
     log('saved to cookies');
 }
@@ -659,7 +691,7 @@ let save_to_url_get_param = () => {
     let tsv = generate_multitable_tsv_text(default_quote_char, default_column_separator);
     let b64 = compressToBase64(tsv);
     document.URL
-    window.history.pushState("", "", `?data=${b64}`);
+    gglobalThis.history.pushState("", "", `?data=${b64}`);
     log('saved to url');
 }
 
@@ -778,15 +810,20 @@ let save_to_local_storage = () => {
 
 
 let load_from_local_storage = () => {
-    let compressed = localStorage.getItem("data");
-    if (!compressed) {
+    let b64 = localStorage.getItem("data");
+    if (!b64) {
         log('tried to load from local storage but no data was found')
         return;
     }
-    let tsv = decompressFromBase64(compressed);
+    let tsv = decompressFromBase64(b64);
+    tsv = tsv.trim();
+    if (!tsv) {
+        return;
+    }
     parse_multitable_tsv_text(tsv);
     rebuild_indexes();
 };
+
 
 let load_from_local_storage_and_rebuild_div = () => {
     load_from_local_storage();
@@ -909,6 +946,7 @@ let hide_show_children = function () {
     }
 }
 
+
 let highlight_task = (button, element) => {
     let cl = element.classList;
     if (cl.contains('highlight')) {
@@ -917,6 +955,11 @@ let highlight_task = (button, element) => {
         button.value = 'disable highlight';
     }
     cl.toggle('highlight');
+}
+
+
+let hide_task_until_reload = (div) => {
+    toggle_hidden(div);
 }
 
 
@@ -1072,6 +1115,7 @@ let update_after_timeout = (task_obj, field_name, input_element, sleep_msecs, fu
         update_timeouts[id] = now;
     }
 }
+
 
 let delete_task = (div, task_to_delete) => {
     let tasks = data.tasks;
@@ -1239,11 +1283,30 @@ let create_task_container = (task_obj, parent_div, insert_before = false) => {
 
     // let focus_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
     let highlight_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'highlight task', onclick: () => highlight_task(highlight_button, container_div) }, ['margin5px']);
+    create_and_add_child(buttons_div, 'input', { type: 'button', value: 'temporarily hide', onclick: () => hide_task_until_reload(container_div) }, ['margin5px']);
     let hide_show_children_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'hide child tasks', onclick: hide_show_children }, ['margin5px']);
     let add_child_task_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'add child task', onclick: () => add_child_task_and_div(children_div, task_obj) }, ['margin5px']);
     let delete_task_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'delete task', onclick: () => delete_task_dialog(container_div, task_obj) }, ['margin5px']);
     let reparent_task_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'reparent task', onclick: () => reparent_task_prompt(task_obj) }, ['margin5px']);
-    let make_sibling_of_parent_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'move left', onclick: () => make_sibling_of_parent(task_obj) }, ['margin5px']);
+    let make_sibling_of_parent_button = create_and_add_child(buttons_div, 'input', {
+        type: 'button',
+        value: 'move left',
+        onclick: () => make_sibling_of_parent(task_obj),
+    });
+    // let make_sibling_of_parent_button_img = create_and_add_child(make_sibling_of_parent_button, 'img', {
+    //     src: '~up.svg',
+    //     width: 16,
+    //     height: 16,
+    // }, ['margin5px'])
+    // set_style(make_sibling_of_parent_button_img, {
+    //     transform: 'rotate(-90deg)',
+    // })
+    // set_style(make_sibling_of_parent_button, {
+    //     backgroundColor: 'hsla(270, 100%, 80%, 0.7)',
+    //     float: 'none',
+    // })
+
+
     let make_child_of_previous_sibling_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'move right', onclick: () => make_child_of_previous(container_div, task_obj) }, ['margin5px']);
     // unimplemented
     let go_up_on_list_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'move up', onclick: () => go_up_on_list(task_obj) }, ['margin5px', 'up']);
@@ -1288,7 +1351,7 @@ let clear_tasks = () => {
     sequences.tasks = 0;
     data.tasks = [];
     rebuild_indexes();
-    window.history.pushState('', '', '');
+    gglobalThis.history.pushState('', '', '');
 }
 
 
@@ -1453,13 +1516,15 @@ let assemble_page = () => {
     }
     if (!data.tasks) {
         clear_tasks();
+    } else {
+        save_to_url_get_param();
     }
     rebuild_menu_div();
     rebuild_data_div();
 }
 
 
-let main = () => {
+let main = async () => {
     log('MAIN BEGIN');
     assemble_page();
     log('MAIN END');

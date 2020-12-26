@@ -2,3 +2,11 @@
 ~*
 *.sublime-project
 *.sublime-workspace
+
+
+dist
+node_modules
+.babelrc
+package.json
+package-lock.json
+webpack.config.js
