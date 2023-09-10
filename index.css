@@ -1,50 +1,61 @@
 * {
     font-size: 1em;
+    /* font color */
     color: hsla(0, 100%, 0%, 1);
     font-family: Arial;
 }
 
-.force_scroll{
+/* remove a setinha pra baixo dos selects */
+/* select { appearance: none; } */
+
+.force_scroll {
     /* overflow: scroll; */
     /* 8k width */
     /* width: 7680px;  */
 }
 
-div.card{
-    background-color: hsla(270, 100%, 50%, 0.6);
+div.card {
+    /* background-color: hsla(270, 100%, 70%, 0.05); */
     /* background-color: #cc99ddee; */
     margin: 5px 5px 5px 5px;
 }
 
-div.idented{
-    margin-left: 20px;
+div.idented {
+    margin-left: 10px;
 }
 
-div.pad10px{
+div.pad10px {
     padding: 5px;
 }
 
-.highlight{
-    background-color: hsla(60, 100%, 50%, 1);
+.highlight {
+    background-color: hsla(60, 100%, 50%, 0.999999);
 }
 
-textarea{
+textarea {
     border: none;
 }
 
-input, select{
+input,
+select {
     border: none;
 }
 
-.margin5px{
+.margin5px {
     margin: 5px 5px 5px 5px;
 }
 
-input:hover, textarea:hover, button:hover, input:focus, textarea:focus, button:focus, select:focus{
+input:hover,
+textarea:hover,
+button:hover,
+input:focus,
+textarea:focus,
+button:focus,
+select:focus {
     outline: none;
 }
 
-input[type="button"]{
+input[type="button"] {
     background-color: hsla(270, 100%, 80%, 0.7);
 }
 
@@ -55,6 +66,49 @@ input[type="button"]{
     height: 16px;
 } */
 
-.bold{
+.bold {
     font-weight: bold;
+}
+
+.gray {
+    color: hsla(0, 0%, 50%, 1.0);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+TODO: testar tooltip css
+https://www.w3schools.com/css/css_tooltip.asp
+*/
+.tooltip .tooltiptext::after {
+    content: " ";
+    position: absolute;
+    top: 100%;
+    /* At the bottom of the tooltip */
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: black transparent transparent transparent;
 }
