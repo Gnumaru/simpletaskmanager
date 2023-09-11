@@ -3,47 +3,136 @@ if the console yields the error "localhost/:1 Unchecked runtime.lastError: The m
 */
 
 /**
-* @typedef {Object} Task
-* @property {int} id pk
-* @property {int} parent_id fk to the parent task
-* @property {int} assignee_id fk to the assignees table
-* @property {int} role_id fk to the role table
-* @property {int} status_id fk to the status table
-* @property {int} type_id fk to the type table
-* @property {int} priority_id fk to the priority table
-* @property {int} order the list order in the tree view
-* @property {int} indent the depth level of the task
-* @property {int} todo_order the intended execution order
-* @property {int} creation_date the unix timestamp of the task creation time
-* @property {int} last_update_date the unix timestamp for the last update time for this task (but not its children)
-* @property {int} start_date the unix timestamp for the intended start date
-* @property {int} due_date the unix timestamp for the expected task term
-* @property {int} hidden if the task subtree is hidden or not. this is not the same as collapsed. hidden tasks are hiden themselves unles a show hidden tasks button is pressed, which make them visible. this is to remove clutter from view
+* @typedef {Object} GTMTaskPartial
+* @property {number} [id] int: pk
+* @property {number} [parent_id] int: fk to the parent task pk
+* @property {number} [assignee_id] int: fk to the assignees pk
+* @property {number} [role_id] int: fk to the role pk
+* @property {number} [status_id] int: fk to the status pk
+* @property {number} [type_id] int: fk to the type pk
+* @property {number} [priority_id] int: fk to the priority pk
+* @property {number} [order] int: the list order in the tree view
+* @property {number} [indent] int: the depth level of the task
+* @property {number} [todo_order] int: the intended execution order
+* @property {number} [creation_date] int: the unix timestamp of the task creation time
+* @property {number} [last_update_date] int: the unix timestamp for the last update time for this task (but not its children)
+* @property {number} [start_date] int: the unix timestamp for the intended start date
+* @property {number} [due_date] int: the unix timestamp for the expected task term
+* @property {boolean} [hidden] if the task subtree is hidden or not. this is not the same as collapsed. hidden tasks are hiden themselves unles a show hidden tasks button is pressed, which make them visible. this is to remove clutter from view
+* @property {string} [name] the task name
+* @property {string} [description] the task description
+*/
+
+/**
+* @typedef {Object} GTMTask
+* @property {number} id int: pk
+* @property {number} parent_id int: fk to the parent task pk
+* @property {number} assignee_id int: fk to the assignees pk
+* @property {number} role_id int: fk to the role pk
+* @property {number} status_id int: fk to the status pk
+* @property {number} type_id int: fk to the type pk
+* @property {number} priority_id int: fk to the priority pk
+* @property {number} order int: the list order in the tree view
+* @property {number} indent int: the depth level of the task
+* @property {number} todo_order int: the intended execution order
+* @property {number} creation_date int: the unix timestamp of the task creation time
+* @property {number} last_update_date int: the unix timestamp for the last update time for this task (but not its children)
+* @property {number} start_date int: the unix timestamp for the intended start date
+* @property {number} due_date int: the unix timestamp for the expected task term
+* @property {boolean} hidden if the task subtree is hidden or not. this is not the same as collapsed. hidden tasks are hiden themselves unles a show hidden tasks button is pressed, which make them visible. this is to remove clutter from view
 * @property {string} name the task name
 * @property {string} description the task description
 */
 
-/** @type{Window} */
+/**
+* @typedef {Object} GTMTaskStatus
+* @property {number} id int: pk
+* @property {string} name the task status name
+*/
+
+/**
+* @typedef {Object} GTMTaskType
+* @property {number} id int: pk
+* @property {string} name the task type name
+*/
+
+/**
+* @typedef {Object} GTMTaskPriority
+* @property {number} id int: pk
+* @property {string} name the task priority name
+*/
+
+/**
+* @typedef {Object} GTMTaskRole
+* @property {number} id int: pk
+* @property {string} name the task role name
+* @property {string} description the task role description
+*/
+
+/**
+* @typedef {Object} GTMTaskAssignee
+* @property {number} id int: pk
+* @property {string} name the task assignee name
+* @property {string} description the task assignee description
+*/
+
+/**
+* @typedef {Object} GTMTaskTag
+* @property {number} id int: pk
+* @property {string} name the task tag name
+* @property {string} description the task tag description
+*/
+
+/**
+* @typedef {Object} GTMTaskTagRel
+* @property {number} id int: pk
+* @property {number} task_id int: fk to the task pk
+* @property {number} tag_id int: fk to the tag pk
+*/
+
+/**
+* @typedef {Object} GTMConfig
+* @property {number} id int: pk
+* @property {string} name the config key
+* @property {(boolean|number|string)} value the config value
+*/
+
+/**
+* @typedef {Object} GTMDatabase
+* @property {(null|Array<GTMTask>)} tasks tasks table
+* @property {(null|Array<GTMTaskStatus>)} statuses statuses table
+* @property {(null|Array<GTMTaskType>)} types types table
+* @property {(null|Array<GTMTaskPriority>)} priorities priorities table
+* @property {(null|Array<GTMTaskRole>)} roles roles table
+* @property {(null|Array<GTMTaskAssignee>)} assignees assignees table
+* @property {(null|Array<GTMTaskTag>)} tags tags table
+* @property {(null|Array<GTMTaskTagRel>)} tag_task_rel association table between tags and tasks
+* @property {(null|Array<GTMConfig>)} config app config table
+*/
+
+/** @type{Window|globalThis} */
 let gglobalThis = globalThis ?? window;
 /** @type{History} */
 let ghistory = globalThis.history;
 /** @type{Document} */
 let gdocument = gglobalThis.document;
-/** @type{HTMLBodyElement} */
+/** @type{HTMLElement} */
 let gbody = document.body;
 /** @type{StyleSheetList} */
 let gstyleSheets = document.styleSheets;
 /** @type{Storage} */
 let glocalStorage = gglobalThis.localStorage;
 
-let gwebsqldb = null;
+// let gwebsqldb = null;
 let gdownload_anchor = null;
 let gupload_input = null;
 let groot_div = null;
 let gmenu_div = null;
 let gdata_div = null;
 let gdraft_div = null;
+/** @type{(undefined|null|Object)}*/
 let gconfig = null;
+/** @type{GTMDatabase} */
 let gdata = {
     // hold the task data itself
     tasks: null,
@@ -112,13 +201,13 @@ gdata.statuses = [
     }
 ];
 
-for (let istatus of gdata.statuses) {
+for (let istatus of gdata.statuses) { // build up the status id to status obj lookup table
     gStatusIdToStatusObj[istatus.id] = istatus
 }
 
 let getStatusNameById = (pid) => {
     if (pid in gStatusIdToStatusObj) {
-        return gStatusIdToStatusObj[ptask_obj.status_id].name;
+        return gStatusIdToStatusObj[pid].name;
     }
     return '';
 }
@@ -335,7 +424,7 @@ let translate = (pidentifier, planguage) => {
 }
 
 
-let set_style = (pelement, pobj) => {
+let setStyle = (pelement, pobj) => {
     let vs = pelement.style;
     for (let ikey in pobj) {
         vs[ikey] = pobj[ikey];
@@ -345,10 +434,9 @@ let set_style = (pelement, pobj) => {
 
 
 /**
- *
- * @param {Task} poverrides
- * @param {bool} pskipSequenceIncrement
- * @returns {Task}
+ * @param {(undefined|null|GTMTaskPartial)} poverrides
+ * @param {boolean} pskipSequenceIncrement
+ * @returns {GTMTask}
  */
 let newTask = (poverrides, pskipSequenceIncrement = false) => {
     let vnewId = 0;
@@ -417,7 +505,7 @@ let newTask = (poverrides, pskipSequenceIncrement = false) => {
 // };
 
 
-let task_compare_by_order = (pleft_task, pright_task) => {
+let taskCompareByOrder = (pleft_task, pright_task) => {
     if (pleft_task.order > pright_task.order) {
         return 1;
     } else if (pleft_task.order < pright_task.order) {
@@ -427,7 +515,7 @@ let task_compare_by_order = (pleft_task, pright_task) => {
 }
 
 
-let get_id = task_obj => {
+let getId = task_obj => {
     let vtask_id = task_obj;
     if (typeof vtask_id == 'object') {
         vtask_id = vtask_id.id;
@@ -436,19 +524,19 @@ let get_id = task_obj => {
 }
 
 
-let get_task_by_id = id_int => {
+let getTaskById = id_int => {
     return gtask_id_to_task[id_int] ?? null;
 }
 
 
-let is_right_ancestor_of_left = (pchild_obj, pancestor_obj_id) => {
+let isRightAncestorOfLeft = (pchild_obj, pancestor_obj_id) => {
     if (!pchild_obj) {
         return false;
     }
     if (pchild_obj.parent_id == pancestor_obj_id) {
         return true;
     }
-    return is_right_ancestor_of_left(get_task_by_id(pchild_obj.parent_id), pancestor_obj_id);
+    return isRightAncestorOfLeft(getTaskById(pchild_obj.parent_id), pancestor_obj_id);
 }
 
 
@@ -466,7 +554,10 @@ let addTaskToIndex = task => {
 }
 
 
-let rebuild_indexes = () => {
+let rebuildIndexes = () => {
+    if (gdata.tasks == null) {
+        return;
+    }
     gtask_id_to_children = {};
     gtask_id_to_task = {}
     for (let itask of gdata.tasks) {
@@ -475,13 +566,13 @@ let rebuild_indexes = () => {
 };
 
 
-let replace_tasks = new_tasks => {
+let replaceTasks = new_tasks => {
     gdata.tasks = new_tasks;
-    rebuild_indexes();
+    rebuildIndexes();
 }
 
 
-let years_from_now = years => {
+let yearsFromNow = years => {
     let vnew_date = new Date();
     vnew_date.setFullYear(vnew_date.getFullYear() + years);
     return vnew_date;
@@ -498,14 +589,14 @@ let createAndAddChild = (pparent_element, ptag_name, pattributes, pcss_classes, 
 
     if (pattributes) {
         for (let ikey in pattributes) {
-            if (!ikey in vnew_el) {
+            if (!(ikey in vnew_el)) {
                 log(ptag_name + ' does not appear to have a property called ' + ikey);
             }
             try {
                 vnew_el[ikey] = pattributes[ikey];
-            } catch {
+            } catch (ve) {
                 log(ikey + ' does not appear to have a seter on tag ' + ptag_name);
-                log(e);
+                log(ve);
             }
         }
     }
@@ -569,7 +660,7 @@ let createFakeTasks = pflat => {
                 parent_id: 0,
                 name: `My name is ${vstart_id}`,
                 description: `My name is ${vstart_id}, son of no one`,
-                description: `I am known as ${vstart_id + 1}, son of no one`,
+                // description: `I am known as ${vstart_id + 1}, son of no one`,
             }));
         }
 
@@ -616,39 +707,50 @@ let loadFromUrl = () => {
     if (!tsv) {
         return false;
     }
-    parse_multitable_tsv_text(tsv);
-    load_config();
-    rebuild_indexes();
+    parseMultitableTsvText(tsv);
+    loadConfig();
+    rebuildIndexes();
     log('loaded from url');
     return true;
 };
 
 
-let load_config = () => {
+let loadConfig = () => {
+    if (gdata.config == null) {
+        return;
+    }
     gconfig = {};
+    let hasDraft = false
     for (let ival of gdata.config) {
+        if (ival.name == 'draft') {
+            hasDraft = true;
+        }
         gconfig[ival.name] = ival;
     }
-    let vdraft_area = document.getElementById('draft_area_id');
-    if (vdraft_area) {
-        vdraft_area.value = gconfig.draft.value;
+    if (!hasDraft) {
+        return;
     }
+    let vdraftArea = /** @type{HTMLTextAreaElement} */(document.getElementById('draft_area_id'));
+    if (vdraftArea == null) {
+        return;
+    }
+    vdraftArea.value = gconfig.draft.value;
 }
 
 
-let load_from_url_and_rebuild = () => {
+let loadFromUrlAndRebuild = () => {
     loadFromUrl();
     rebuildTasksDiv();
 };
 
 
-let load_fake_tasks = () => {
-    replace_tasks(createFakeTasks(false));
+let loadFakeTasks = () => {
+    replaceTasks(createFakeTasks(false));
     rebuildTasksDiv()
 };
 
 
-let download_string = (pfname, pdatastring) => {
+let downloadString = (pfname, pdatastring) => {
     if (!gdownload_anchor) {
         gdownload_anchor = createAndAddChild(gbody, 'a');
         gdownload_anchor.style.display = 'none';
@@ -659,9 +761,9 @@ let download_string = (pfname, pdatastring) => {
 }
 
 
-let download_json = () => {
+let downloadJson = () => {
     let vtasks_str = JSON.stringify(gdata.tasks);
-    download_string('db.json', vtasks_str);
+    downloadString('db.json', vtasks_str);
 }
 
 
@@ -709,11 +811,11 @@ let generateMultitableTsvText = (pquote_char = gdefault_quote_char, pcolumn_sepa
 
 let downloadTsv = (pquote_char = gdefault_quote_char, pcolumn_separator = gdefault_column_separator) => {
     let vstr = generateMultitableTsvText(pquote_char, pcolumn_separator);
-    download_string('db.mt.tsv', vstr);
+    downloadString('db.mt.tsv', vstr);
 }
 
 
-let parse_table_rows = (ptable_name, prows, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
+let parseTableRows = (ptable_name, prows, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
     if (!prows || prows.length < 1) {
         return [];
     }
@@ -783,7 +885,7 @@ let parse_table_rows = (ptable_name, prows, pcolumn_separator = gdefault_column_
             vdata[ikey] = vval;
             vcount++;
         }
-        if ('id' in vdata && vdata.id > vmax) {
+        if ('id' in vdata && typeof vdata.id == 'number' && vdata.id > vmax) {
             vmax = vdata.id;
         }
         vresult.push(vdata);
@@ -793,7 +895,7 @@ let parse_table_rows = (ptable_name, prows, pcolumn_separator = gdefault_column_
 };
 
 
-let parse_tsv_table_text = (ptable_text, prow_separator = gdefault_row_separator, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
+let parseTsvTableText = (ptable_text, prow_separator = gdefault_row_separator, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
     let vtrimmed = ptable_text.trim();
     let vrows = vtrimmed.split(prow_separator);
     let vtable_name = vrows.shift().trim();
@@ -803,12 +905,12 @@ let parse_tsv_table_text = (ptable_text, prow_separator = gdefault_row_separator
     if (vtable_name == 'other') { // TODO DELETE
         return; // TODO DELETE
     } // TODO DELETE
-    let vvalues = parse_table_rows(vtable_name, vrows, pcolumn_separator, pquote_char);
+    let vvalues = parseTableRows(vtable_name, vrows, pcolumn_separator, pquote_char);
     gdata[vtable_name] = vvalues;
 }
 
 
-let prepare_tsv_text_for_processing = ptext => {
+let prepareTsvTextForProcessing = ptext => {
     ptext = ptext.trim();
     ptext = ptext.replace(/\r\n/g, '\n');
     ptext = ptext.replace(/\r/g, '\n');
@@ -818,20 +920,21 @@ let prepare_tsv_text_for_processing = ptext => {
 }
 
 
-let parse_multitable_tsv_text = (ptext, ptable_separator = gdefault_table_separator, prow_separator = gdefault_row_separator, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
-    let vtables_text_arr = prepare_tsv_text_for_processing(ptext).split(ptable_separator);
+let parseMultitableTsvText = (ptext, ptable_separator = gdefault_table_separator, prow_separator = gdefault_row_separator, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
+    let vtables_text_arr = prepareTsvTextForProcessing(ptext).split(ptable_separator);
     gsequences = {};
     for (let vtable_text of vtables_text_arr) {
-        parse_tsv_table_text(vtable_text, prow_separator, pcolumn_separator, pquote_char);
+        parseTsvTableText(vtable_text, prow_separator, pcolumn_separator, pquote_char);
     }
-    let vdraft_area = document.getElementById('draft_area_id');
-    if (vdraft_area) {
-        vdraft_area.value = gconfig.draft.value;
+    let vdraftArea = /** @type{HTMLTextAreaElement} */(document.getElementById('draft_area_id'));
+    if (vdraftArea == null) {
+        return;
     }
+    vdraftArea.value = gconfig.draft.value;
 }
 
 
-let upload_input_onchange = () => {
+let uploadInputOnchange = () => {
     log('loading file');
     let vfiles = gupload_input.files;
     if (!vfiles) {
@@ -843,28 +946,37 @@ let upload_input_onchange = () => {
     }
     let vreader = new FileReader();
     vreader.onload = evt => {
+        /** @type {(string|ArrayBuffer|null)} */
         let vtxt_data = vreader.result;
         let vtmp = null;
         let vsuccess = false;
-        try {
-            gdata = JSON.parse(vtxt_data);
-            vsuccess = true;
-            log('sucess loading json');
-
-        } catch (e) {
+        if (typeof vtxt_data == 'string') {
             try {
-                parse_multitable_tsv_text(vtxt_data)
-                rebuild_indexes()
+                gdata = JSON.parse(vtxt_data); // allows uploading a json instead of a mttsv
+                log('sucess loading json');
                 vsuccess = true;
-                log('sucess loading tsv');
 
             } catch (e) {
-                log('error reading file');
+                log('error reading file as json');
                 log(e);
             }
         }
+
+        if (!vsuccess) {
+            try {
+                parseMultitableTsvText(vtxt_data)
+                rebuildIndexes()
+                log('sucess loading tsv');
+                vsuccess = true;
+
+            } catch (e) {
+                log('error reading file as mt.tsv');
+                log(e);
+            }
+        }
+
         if (vsuccess) {
-            load_config();
+            loadConfig();
             rebuildTasksDiv();
             saveInAllPlaces();
 
@@ -876,11 +988,11 @@ let upload_input_onchange = () => {
 };
 
 
-let upload_file = () => {
+let uploadFile = () => {
     if (!gupload_input) {
         gupload_input = createAndAddChild(gbody, 'input', { type: 'file' });
         gupload_input.style.display = 'none';
-        gupload_input.onchange = upload_input_onchange;
+        gupload_input.onchange = uploadInputOnchange;
     }
     gupload_input.click();
     // File chooser dialog can only be shown with a user activation.
@@ -983,64 +1095,64 @@ let saveToUrl = (vb64) => {
 }
 
 
-let save_to_websql = () => {
-    if (!gwebsqldb) {
-        gwebsqldb = openDatabase('data', '1.0', '', 5 * 1024 * 1024);
-        gwebsqldb.transaction(tx => {
-            tx.executeSql('CREATE TABLE tasks (id unique, name, description);');
-        });
-    } else {
-        gwebsqldb.transaction(tx => {
-            tx.executeSql('DROP TABLE tasks;');
-            tx.executeSql('CREATE TABLE tasks (id unique, name, description);');
-        });
-    }
+// let save_to_websql = () => {
+//     if (!gwebsqldb) {
+//         gwebsqldb = openDatabase('data', '1.0', '', 5 * 1024 * 1024);
+//         gwebsqldb.transaction(tx => {
+//             tx.executeSql('CREATE TABLE tasks (id unique, name, description);');
+//         });
+//     } else {
+//         gwebsqldb.transaction(tx => {
+//             tx.executeSql('DROP TABLE tasks;');
+//             tx.executeSql('CREATE TABLE tasks (id unique, name, description);');
+//         });
+//     }
 
-    let vinserts = [];
-    for (let itask of gdata.tasks) {
-        vinserts.push(`INSERT INTO tasks (id, name, description) VALUES (${JSON.stringify(itask.id)}, ${JSON.stringify(itask.name)}, ${JSON.stringify(itask.description)});`)
-    }
-    gwebsqldb.transaction(tx => {
-        for (let iinsert of vinserts) {
-            log(iinsert);
-            tx.executeSql(iinsert);
-        }
-    });
-}
-
-
-let save_to_cachestorage = pstep => {
-    log('a');
-    switch (pstep) {
-        case 0:
-            log('b');
-            caches.open('data')
-                .then(cache => {
-                    log('c');
-                    cache.delete('tasks')
-                    save_to_cachestorage(1);
-                }).catch(err => {
-                    log('error');
-                });
-            return;
-
-        case 1:
-            log('d');
-            caches.open('data')
-                .then(cache => {
-                    log('e');
-                    cache
-                        .add("tasks", gdata.tasks)
-                        .then(() => log("tasks saved"))
-                        .catch((err) => log(err));
-                }).catch(err => {
-                    log('error');
-                })
-    }
-};
+//     let vinserts = [];
+//     for (let itask of gdata.tasks) {
+//         vinserts.push(`INSERT INTO tasks (id, name, description) VALUES (${JSON.stringify(itask.id)}, ${JSON.stringify(itask.name)}, ${JSON.stringify(itask.description)});`)
+//     }
+//     gwebsqldb.transaction(tx => {
+//         for (let iinsert of vinserts) {
+//             log(iinsert);
+//             tx.executeSql(iinsert);
+//         }
+//     });
+// }
 
 
-let save_to_indexeddb = pstep => {
+// let save_to_cachestorage = pstep => {
+//     log('a');
+//     switch (pstep) {
+//         case 0:
+//             log('b');
+//             caches.open('db.mt.tsv')
+//                 .then(cache => {
+//                     log('c');
+//                     cache.delete('tasks')
+//                     save_to_cachestorage(1);
+//                 }).catch(err => {
+//                     log('error');
+//                 });
+//             return;
+
+//         case 1:
+//             log('d');
+//             caches.open('db.mt.tsv')
+//                 .then(cache => {
+//                     log('e');
+//                     cache
+//                         .add("tasks", gdata.tasks)
+//                         .then(() => log("tasks saved"))
+//                         .catch((err) => log(err));
+//                 }).catch(err => {
+//                     log('error');
+//                 })
+//     }
+// };
+
+
+let saveToIndexeddb = pstep => {
     log('save_to_indexeddb step ' + pstep);
     switch (pstep) {
         case 0:
@@ -1049,17 +1161,17 @@ let save_to_indexeddb = pstep => {
             vreq.onsuccess = () => {
                 console.log("Deleted database successfully");
                 // call the next step
-                save_to_indexeddb(1);
+                saveToIndexeddb(1);
             };
             vreq.onerror = () => {
                 console.log("Couldn't delete database");
                 // call the next step
-                save_to_indexeddb(1);
+                saveToIndexeddb(1);
             };
             vreq.onblocked = () => {
                 console.log("Couldn't delete database due to the operation being blocked");
                 // call the next step
-                save_to_indexeddb(1);
+                saveToIndexeddb(1);
                 // setTimeout(() => save_to_indexeddb(0), 100);
             };
             return;
@@ -1067,8 +1179,14 @@ let save_to_indexeddb = pstep => {
         case 1:
             let vrequest = indexedDB.open("data");
             vrequest.onupgradeneeded = event => {
+                if (event.target == null) {
+                    return;
+                }
                 let vdb = event.target.result;
                 let vobjectStore = vdb.createObjectStore("tasks", { keyPath: "id" });
+                if (gdata.tasks == null) {
+                    return;
+                }
                 for (let itask of gdata.tasks) {
                     vobjectStore.add(itask);
                 }
@@ -1082,7 +1200,9 @@ let loadFromCookies = () => { // cookie cannot store enough data. only 4096 byte
     let vb64 = ''
     let vcookiesordered = getAllCookiesOrdered();
     for (let ipair of vcookiesordered) {
-        if (!isNaN(ipair[0])) {
+        /** @type {string} */
+        let vstr = ipair[0].trim(); // nao deveria ser possivel comecar ou terminar com espaco em branco. mas play safe nao custa
+        if (vstr.length > 0 && !isNaN(Number(vstr))) {
             vb64 += ipair[1];
         }
     }
@@ -1095,9 +1215,9 @@ let loadFromCookies = () => { // cookie cannot store enough data. only 4096 byte
     if (!vtsv) {
         return false;
     }
-    parse_multitable_tsv_text(vtsv);
-    load_config();
-    rebuild_indexes();
+    parseMultitableTsvText(vtsv);
+    loadConfig();
+    rebuildIndexes();
     log('loaded from cookies');
     return true;
 }
@@ -1109,7 +1229,7 @@ let saveToLocalStorage = (vb64) => { // local storage has a limit of 5MB on chro
         vb64 = compressToBase64(vtsv);
     }
     glocalStorage.setItem("data", vb64);
-    if (glocalStorage.getItem("data").length != vb64.length) {
+    if ((/** @type{string} */(glocalStorage.getItem("data"))).length != vb64.length) {
         var vmsg = 'local storage was unable to hold database. data is too large'
         assert(false, 'vmsg');
         alert(vmsg);
@@ -1129,9 +1249,9 @@ let loadFromLocalStorage = () => {
     if (!vtsv) {
         return false;
     }
-    parse_multitable_tsv_text(vtsv);
-    load_config();
-    rebuild_indexes();
+    parseMultitableTsvText(vtsv);
+    loadConfig();
+    rebuildIndexes();
     log('loaded from local storage');
     return true;
 };
@@ -1169,11 +1289,13 @@ let addChildTask = (ptaskObj, pparentTaskId, pbefore) => {
         }
         vnewChildTask[ikey] = ptaskObj[ikey];
     }
-    if (pbefore) {
-        gdata.tasks.unshift(vnewChildTask);
+    if (gdata.tasks != null) {
+        if (pbefore) {
+            gdata.tasks.unshift(vnewChildTask);
 
-    } else {
-        gdata.tasks.push(vnewChildTask);
+        } else {
+            gdata.tasks.push(vnewChildTask);
+        }
     }
 
     addTaskToIndex(vnewChildTask);
@@ -1188,40 +1310,38 @@ let addChildTaskAndDiv = (pparent_div, pparent_task) => {
 };
 
 
-let reparent_task = (ptask_obj, pnew_parent_id) => {
-    if (is_right_ancestor_of_left(get_task_by_id(pnew_parent_id), ptask_obj.id)) {
+let reparentTask = (ptask_obj, pnew_parent_id) => {
+    if (isRightAncestorOfLeft(getTaskById(pnew_parent_id), ptask_obj.id)) {
         logalert('ERROR: cannot reparent because current task is ancestor of new parent');
         return;
     }
     ptask_obj.parent_id = pnew_parent_id;
-    rebuild_indexes();
+    rebuildIndexes();
     rebuildTasksDiv();
 };
 
 
-let reparent_task_prompt = task => {
-    let vnew_parent_id = prompt('input the new parent id');
-    try {
-        vnew_parent_id = parseInt(vnew_parent_id.trim());
-    } catch (e) {
-        log('error parsing result as integer')
+let reparentTaskPrompt = task => {
+    let vnewParentId = prompt('input the new parent id');
+    let vnewParentIdInt = vnewParentId == null ? 0 : parseInt(vnewParentId);
+    if (vnewParentIdInt < 1) {
         return;
     }
-    reparent_task(task, vnew_parent_id);
+    reparentTask(task, vnewParentIdInt);
 };
 
 
-let make_sibling_of_parent = task => {
+let makeSiblingOfParent = task => {
     let vparent_id = task.parent_id;
-    let vparent_task = get_task_by_id(vparent_id);
+    let vparent_task = getTaskById(vparent_id);
     let vgrandparent_id = vparent_task.parent_id;
     task.parent_id = vgrandparent_id;
-    rebuild_indexes();
+    rebuildIndexes();
     rebuildTasksDiv();
 };
 
 
-let make_child_of_previous = (pcontainer, ptask) => {
+let makeChildOfPrevious = (pcontainer, ptask) => {
     let vprevious_div = pcontainer.previousSibling;
     if (!vprevious_div) {
         log('there is no previous sibling we can become hild of');
@@ -1234,14 +1354,14 @@ let make_child_of_previous = (pcontainer, ptask) => {
     pcontainer.parentElement.removeChild(pcontainer);
     vprevious_children_div.appendChild(pcontainer)
     ptask.parent_id = vprevious_task_id;
-    rebuild_indexes();
+    rebuildIndexes();
 };
 
 
-let toggle_hidden = element => {
+let toggleHidden = element => {
     if (Array.isArray(element)) {
         for (let iel of element) {
-            toggle_hidden(iel);
+            toggleHidden(iel);
         }
         return;
     }
@@ -1256,28 +1376,45 @@ let toggle_hidden = element => {
 }
 
 
-let hide_show_children = function (pcontainerdiv) { // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
+/**
+ * @param {HTMLDivElement} [pcontainerdiv]
+ * @return {undefined}
+ */
+let hideShowChildren = function (pcontainerdiv) { // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
+    /** @type {HTMLButtonElement} */
+    let vthis = /** @type {?} */(this);
+    if (typeof vthis != 'object') {
+        return;
+    }
+    let vfirstparent = vthis.parentElement;
+    let vsecondparent = vfirstparent?.parentElement ?? null;
+    let vthirdparent = vsecondparent?.parentElement ?? null;
+    /** @type{(undefined|null|HTMLDivElement)} */
     // 'this' is the button, first parent is the form_div, second parent is the container_div
-    let vcontainer_div = pcontainerdiv ?? this.parentElement.parentElement.parentElement; // inputbtn > btnsdiv > formdiv > treecontainerdiv
-    let vchildren_div = vcontainer_div.querySelector('div.children');
-    let vdisplay = vchildren_div.style.display;
+    let vcontainerDiv = (/** @type{(undefined|null|HTMLDivElement)} */ (pcontainerdiv ?? vthirdparent)); // inputbtn > btnsdiv > formdiv > treecontainerdiv
+    if (vcontainerDiv == null) {
+        return;
+    }
+    /** @type{(undefined|null|HTMLDivElement)} */
+    let vchildrenDiv = vcontainerDiv.querySelector('div.children');
+    let vdisplay = vchildrenDiv.style.display;
     if (vdisplay == 'none') {
-        vchildren_div.style.display = 'block';
-        // this.value = 'hide child tasks';
-        if (this) {
-            this.value = 'collapse';
+        vchildrenDiv.style.display = 'block';
+        // vthis.value = 'hide child tasks';
+        if (vthis) {
+            vthis.value = 'collapse';
         }
     } else {
-        vchildren_div.style.display = 'none';
-        // this.value = 'show child tasks';
-        if (this) {
-            this.value = 'expand';
+        vchildrenDiv.style.display = 'none';
+        // vthis.value = 'show child tasks';
+        if (vthis) {
+            vthis.value = 'expand';
         }
     }
 }
 
 
-let highlight_task = (pbutton, pelement) => {
+let highlightTask = (pbutton, pelement) => {
     let vcl = pelement.classList;
     if (vcl.contains('highlight')) {
         pbutton.value = 'highlight task';
@@ -1288,12 +1425,12 @@ let highlight_task = (pbutton, pelement) => {
 }
 
 
-let hide_task_until_reload = (pdiv) => {
-    toggle_hidden(pdiv);
+let hideTaskUntilReload = (pdiv) => {
+    toggleHidden(pdiv);
 }
 
 
-let go_up_on_list = task_obj => {
+let goUpOnList = task_obj => {
     let vcontainer_div = document.getElementById(gid_container_div_prefix + task_obj.id);
     let vprevious_container = vcontainer_div.previousSibling;
     if (!vprevious_container) {
@@ -1312,7 +1449,7 @@ let go_up_on_list = task_obj => {
 }
 
 
-let go_down_on_list = task_obj => {
+let goDownOnList = task_obj => {
     let vcontainer_div = document.getElementById(gid_container_div_prefix + task_obj.id);
     let vnext_container = vcontainer_div.nextSibling;
     if (!vnext_container) {
@@ -1334,7 +1471,7 @@ let go_down_on_list = task_obj => {
 }
 
 
-let count_siblings = element => {
+let countSiblings = element => {
     let vtag = element.tagName;
     let vcnt = 0;
     let vprevious = element.previousSibling;
@@ -1348,13 +1485,13 @@ let count_siblings = element => {
 }
 
 
-let get_path = element => {
+let getPath = element => {
     let vpath = '';
     let vparent = element;
 
     while (vparent) {
         let vtag = vparent.tagName;
-        let vcnt = count_siblings(vparent);
+        let vcnt = countSiblings(vparent);
         vpath = `/${vtag}[${vcnt}]${vpath}`;
         vparent = vparent.parentElement;
     }
@@ -1362,7 +1499,7 @@ let get_path = element => {
 };
 
 
-let recursive_save_check = how_much_we_should_wait_ms => {
+let recursiveSaveCheck = how_much_we_should_wait_ms => {
     let vbefore = gsave_timeout;
     let vnow = Date.now();
     let vhow_much_time_actually_passed_ms = vnow - vbefore;
@@ -1373,17 +1510,17 @@ let recursive_save_check = how_much_we_should_wait_ms => {
     }
     let diff = how_much_we_should_wait_ms - vhow_much_time_actually_passed_ms;
     setTimeout(() =>
-        recursive_update_check(diff), diff);
+        recursiveUpdateCheck(diff), diff);
 };
 
 
-let save_after_timeout = sleep_msecs => {
+let saveAfterTimeout = sleep_msecs => {
     let vnow = Date.now();
     if (!gsave_timeout) {
         // if there is no timeout running, set the time and call the function
         gsave_timeout = vnow;
         setTimeout(() =>
-            recursive_save_check(sleep_msecs), sleep_msecs);
+            recursiveSaveCheck(sleep_msecs), sleep_msecs);
     } else {
         // if there is already a timeout running, just reset the time
         gsave_timeout = vnow;
@@ -1391,7 +1528,7 @@ let save_after_timeout = sleep_msecs => {
 }
 
 
-let recursive_update_check = (ptask_obj, pfield_name, pinput_element, phow_much_we_should_wait_ms, pgetter_func, pcallbacks) => {
+let recursiveUpdateCheck = (ptask_obj, pfield_name, pinput_element, phow_much_we_should_wait_ms, pgetter_func, pcallbacks) => {
     // if (pinput_element == null) { // if null or undefined
     //     assert(ptask_obj.name == 'draft' && pfield_name == 'value');
     //     return
@@ -1431,15 +1568,15 @@ let recursive_update_check = (ptask_obj, pfield_name, pinput_element, phow_much_
                 pcallbacks();
             }
         }
-        save_after_timeout(gdefault_sleep_msecs);
+        saveAfterTimeout(gdefault_sleep_msecs);
         return;
     }
     setTimeout(() =>
-        recursive_update_check(ptask_obj, pfield_name, pinput_element, phow_much_we_should_wait_ms - vhow_much_time_actually_passed_ms, pgetter_func, pcallbacks), phow_much_we_should_wait_ms);
+        recursiveUpdateCheck(ptask_obj, pfield_name, pinput_element, phow_much_we_should_wait_ms - vhow_much_time_actually_passed_ms, pgetter_func, pcallbacks), phow_much_we_should_wait_ms);
 }
 
 
-let update_after_timeout = (ptask_obj, pfield_name, pinput_element, psleep_msecs = gdefault_sleep_msecs, pfunc = identity, pcallbacks = null) => {
+let updateAfterTimeout = (ptask_obj, pfield_name, pinput_element, psleep_msecs = gdefault_sleep_msecs, pfunc = identity, pcallbacks = null) => {
     let vid = ptask_obj.id;
     let vcur_timeout = gupdate_timeouts[vid];
     let vnow = Date.now();
@@ -1447,7 +1584,7 @@ let update_after_timeout = (ptask_obj, pfield_name, pinput_element, psleep_msecs
         // if there is no timeout running, set the time and call the function
         gupdate_timeouts[vid] = vnow;
         setTimeout(() =>
-            recursive_update_check(ptask_obj, pfield_name, pinput_element, psleep_msecs, pfunc, pcallbacks), psleep_msecs,);
+            recursiveUpdateCheck(ptask_obj, pfield_name, pinput_element, psleep_msecs, pfunc, pcallbacks), psleep_msecs,);
     } else {
         // if there is already a timeout running, just reset the time
         gupdate_timeouts[vid] = vnow;
@@ -1455,18 +1592,18 @@ let update_after_timeout = (ptask_obj, pfield_name, pinput_element, psleep_msecs
 }
 
 
-let delete_task = (pdiv, ptask_to_delete) => {
+let deleteTask = (pdiv, ptask_to_delete) => {
     let vtasks = gdata.tasks;
     let vindex = vtasks.indexOf(ptask_to_delete);
     // removes 1 element starting at index 'index'
     vtasks.splice(vindex, 1)
     // for now lets just rebuild the indexes, its easier than otherwise
 
-    let vdivpath = get_path(pdiv);
-    let vparentpath = get_path(pdiv.parentElement)
+    let vdivpath = getPath(pdiv);
+    let vparentpath = getPath(pdiv.parentElement)
     log('will now remove ' + vdivpath + ' from ' + vparentpath);
     pdiv.parentElement.removeChild(pdiv);
-    rebuild_indexes();
+    rebuildIndexes();
     log('deleted task ' + ptask_to_delete.id)
     saveInAllPlaces();
 }
@@ -1489,11 +1626,11 @@ let deleteTaskDialog = (pdiv, ptask) => {
         }
     }
 
-    delete_task(pdiv, ptask);
+    deleteTask(pdiv, ptask);
 }
 
 
-let add_select_options = (pselect, poptions, pselected_index) => {
+let addSelectOptions = (pselect, poptions, pselected_index) => {
     createAndAddChild(pselect, 'option', {
         value: 0,
         innerText: '-',
@@ -1570,8 +1707,8 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
         // log(`before: ${this.extra_data.valueBefore}`);
         // log(`now: ${this.value}`);
         switch (this.value) {
-            case 'reparent': reparent_task_prompt(ptaskObj); return;
-            case 'collapse/expand': hide_show_children(ptaskObj._taskRootDiv_); return;
+            case 'reparent': reparentTaskPrompt(ptaskObj); return;
+            case 'collapse/expand': hideShowChildren(ptaskObj._taskRootDiv_); return;
             case 'description': alert(ptaskObj.description); return;
         }
         this.blur(); // worst api method name EVER. why not unfocus?
@@ -1587,13 +1724,13 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
     let vbuttons_div = createAndAddChild(vcurrent_task_div, 'div'); // buttons before form
     let vcurrent_form = createAndAddChild(vcurrent_task_div, 'div', { id: vform_id });
     vname_div.onclick = () =>
-        toggle_hidden([vcurrent_form, vbuttons_div]);
+        toggleHidden([vcurrent_form, vbuttons_div]);
     // vname_div.oncontextmenu = function (pe) {
     //     pe.preventDefault();
     //     // TODO: create context menu
     //     // https://www.geeksforgeeks.org/how-to-add-a-custom-right-click-menu-to-a-webpage/
     // }
-    toggle_hidden([vcurrent_form, vbuttons_div]);
+    toggleHidden([vcurrent_form, vbuttons_div]);
 
 
 
@@ -1624,7 +1761,7 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
         rows: 1, cols: 40,
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
         onkeyup: function () {
-            update_after_timeout(ptaskObj, 'name', this, gdefault_sleep_msecs, identity, () => {
+            updateAfterTimeout(ptaskObj, 'name', this, gdefault_sleep_msecs, identity, () => {
                 document.getElementById(gid_name_div_prefix + vid).innerText = ptaskObj.name;
             })
         },
@@ -1637,7 +1774,7 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
         rows: 2,
         cols: 40,
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onkeyup: function () { update_after_timeout(ptaskObj, 'description', this, gdefault_sleep_msecs) },
+        onkeyup: function () { updateAfterTimeout(ptaskObj, 'description', this, gdefault_sleep_msecs) },
     });
 
     let vbr1 = createAndAddChild(vcurrent_form, 'br');
@@ -1646,7 +1783,7 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
         type: 'date',
         value: (new Date(ptaskObj.start_date)).toISOString().substring(0, 10),
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onchange: function () { update_after_timeout(ptaskObj, 'start_date', this, gdefault_sleep_msecs, new_date_ms) },
+        onchange: function () { updateAfterTimeout(ptaskObj, 'start_date', this, gdefault_sleep_msecs, new_date_ms) },
     });
 
     let vbr2 = createAndAddChild(vcurrent_form, 'br');
@@ -1655,48 +1792,48 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
         type: 'date',
         value: (new Date(ptaskObj.due_date)).toISOString().substring(0, 10),
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onchange: function () { update_after_timeout(ptaskObj, 'due_date', this, gdefault_sleep_msecs, new_date_ms) },
+        onchange: function () { updateAfterTimeout(ptaskObj, 'due_date', this, gdefault_sleep_msecs, new_date_ms) },
     });
 
     let vbr3 = createAndAddChild(vcurrent_form, 'br');
     let vlabel_select_asignee = createAndAddChild(vcurrent_form, 'label', { textContent: 'Assignee:' });
     let vselect_asignee = createAndAddChild(vcurrent_form, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onchange: function () { update_after_timeout(ptaskObj, 'assignee_id', this, gdefault_sleep_msecs, parseInt) },
+        onchange: function () { updateAfterTimeout(ptaskObj, 'assignee_id', this, gdefault_sleep_msecs, parseInt) },
     });
-    add_select_options(vselect_asignee, gdata.assignees, ptaskObj.assignee_id);
+    addSelectOptions(vselect_asignee, gdata.assignees, ptaskObj.assignee_id);
 
     let vbr4 = createAndAddChild(vcurrent_form, 'br');
     let vlabel_select_role = createAndAddChild(vcurrent_form, 'label', { textContent: 'Role:' });
     let vselect_role = createAndAddChild(vcurrent_form, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onchange: function () { update_after_timeout(ptaskObj, 'role_id', this, gdefault_sleep_msecs, parseInt) },
+        onchange: function () { updateAfterTimeout(ptaskObj, 'role_id', this, gdefault_sleep_msecs, parseInt) },
     });
-    add_select_options(vselect_role, gdata.roles, ptaskObj.role_id);
+    addSelectOptions(vselect_role, gdata.roles, ptaskObj.role_id);
 
     let vbr5 = createAndAddChild(vcurrent_form, 'br');
     let vlabel_select_status = createAndAddChild(vcurrent_form, 'label', { textContent: 'Status:' });
     let vselect_status = createAndAddChild(vcurrent_form, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onchange: function () { update_after_timeout(ptaskObj, 'status_id', this, gdefault_sleep_msecs, parseInt) },
+        onchange: function () { updateAfterTimeout(ptaskObj, 'status_id', this, gdefault_sleep_msecs, parseInt) },
     });
-    add_select_options(vselect_status, gdata.statuses, ptaskObj.status_id);
+    addSelectOptions(vselect_status, gdata.statuses, ptaskObj.status_id);
 
     let vbr6 = createAndAddChild(vcurrent_form, 'br');
     let vlabel_select_type = createAndAddChild(vcurrent_form, 'label', { textContent: 'Type:' });
     let vselect_type = createAndAddChild(vcurrent_form, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onchange: function () { update_after_timeout(ptaskObj, 'type_id', this, gdefault_sleep_msecs, parseInt) },
+        onchange: function () { updateAfterTimeout(ptaskObj, 'type_id', this, gdefault_sleep_msecs, parseInt) },
     });
-    add_select_options(vselect_type, gdata.types, ptaskObj.type_id);
+    addSelectOptions(vselect_type, gdata.types, ptaskObj.type_id);
 
     let vbr7 = createAndAddChild(vcurrent_form, 'br');
     let vlabel_select_priority = createAndAddChild(vcurrent_form, 'label', { textContent: 'Priority:' });
     let vselect_priority = createAndAddChild(vcurrent_form, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onchange: function () { update_after_timeout(ptaskObj, 'priority_id', this, gdefault_sleep_msecs, parseInt) },
+        onchange: function () { updateAfterTimeout(ptaskObj, 'priority_id', this, gdefault_sleep_msecs, parseInt) },
     });
-    add_select_options(vselect_priority, gdata.priorities, ptaskObj.priority_id);
+    addSelectOptions(vselect_priority, gdata.priorities, ptaskObj.priority_id);
 
     let vbr8 = createAndAddChild(vcurrent_form, 'br');
     let vLabelInputNumberTodoOrder = createAndAddChild(vcurrent_form, 'label', { textContent: 'TODO order:' });
@@ -1704,7 +1841,7 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
         type: 'number',
         value: ptaskObj.todo_order,
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onchange: function () { update_after_timeout(ptaskObj, 'todo_order', this, gdefault_sleep_msecs, parseInt) },
+        onchange: function () { updateAfterTimeout(ptaskObj, 'todo_order', this, gdefault_sleep_msecs, parseInt) },
     });
 
     // TODO: hidden checkbox here
@@ -1713,13 +1850,13 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
     // let focus_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
     let vhighlight_button = createAndAddChild(vbuttons_div, 'input', {
         type: 'button', value: 'highlight task', onclick: () =>
-            highlight_task(vhighlight_button, vcontainer_div)
+            highlightTask(vhighlight_button, vcontainer_div)
     }, ['margin5px']);
     let vhidebtn = createAndAddChild(vbuttons_div, 'input', {
         type: 'button', value: 'temporarily hide', onclick: () =>
-            hide_task_until_reload(vcontainer_div)
+            hideTaskUntilReload(vcontainer_div)
     }, ['margin5px']);
-    let vhide_show_children_button = createAndAddChild(vbuttons_div, 'input', { type: 'button', value: 'collapse', onclick: hide_show_children }, ['margin5px']);
+    let vhide_show_children_button = createAndAddChild(vbuttons_div, 'input', { type: 'button', value: 'collapse', onclick: hideShowChildren }, ['margin5px']);
     let vadd_child_task_button = createAndAddChild(vbuttons_div, 'input', {
         type: 'button', value: 'add child task', onclick: () =>
             addChildTaskAndDiv(vchildren_div, ptaskObj)
@@ -1730,13 +1867,13 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
     }, ['margin5px']);
     let vreparent_task_button = createAndAddChild(vbuttons_div, 'input', {
         type: 'button', value: 'reparent task', onclick: () =>
-            reparent_task_prompt(ptaskObj)
+            reparentTaskPrompt(ptaskObj)
     }, ['margin5px']);
     let vmake_sibling_of_parent_button = createAndAddChild(vbuttons_div, 'input', {
         type: 'button',
         value: 'move left',
         onclick: () =>
-            make_sibling_of_parent(ptaskObj),
+            makeSiblingOfParent(ptaskObj),
     });
     // let make_sibling_of_parent_button_img = create_and_add_child(make_sibling_of_parent_button, 'img', {
     //     src: '~up.svg',
@@ -1752,16 +1889,16 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
     // })
     let vmake_child_of_previous_sibling_button = createAndAddChild(vbuttons_div, 'input', {
         type: 'button', value: 'move right', onclick: () =>
-            make_child_of_previous(vcontainer_div, ptaskObj)
+            makeChildOfPrevious(vcontainer_div, ptaskObj)
     }, ['margin5px']);
     // unimplemented
     let vgo_up_on_list_button = createAndAddChild(vbuttons_div, 'input', {
         type: 'button', value: 'move up', onclick: () =>
-            go_up_on_list(ptaskObj)
+            goUpOnList(ptaskObj)
     }, ['margin5px', 'up']);
     let vgo_down_on_list_button = createAndAddChild(vbuttons_div, 'input', {
         type: 'button', value: 'move down', onclick: () =>
-            go_down_on_list(ptaskObj)
+            goDownOnList(ptaskObj)
     }, ['margin5px']);
     // delete (reparent children to grandparent)
     // delete (with children)
@@ -1772,7 +1909,7 @@ let createTaskContainer = (ptaskObj, pparent_div, pinsert_before = false) => {
     vclassList.add('children');
 
 
-    let vordered_child_tasks = vchild_tasks.slice().sort(task_compare_by_order);
+    let vordered_child_tasks = vchild_tasks.slice().sort(taskCompareByOrder);
     let vorder = 0;
     let vhide_completed = gconfig.hide_completed.value;
     for (let ichild_task of vordered_child_tasks) {
@@ -1795,7 +1932,7 @@ let rebuildTasksDiv = () => {
         return;
     }
 
-    let vordered_root_tasks = vroot_tasks.slice().sort(task_compare_by_order);
+    let vordered_root_tasks = vroot_tasks.slice().sort(taskCompareByOrder);
     let vorder = 0;
     let vhide_completed = gconfig.hide_completed.value;
     for (let iroot_task of vordered_root_tasks) {
@@ -1812,8 +1949,8 @@ let rebuildTasksDiv = () => {
 let clearTasks = () => {
     gsequences.tasks = 0;
     gdata.tasks = [];
-    rebuild_indexes();
-    load_config();
+    rebuildIndexes();
+    loadConfig();
     ghistory.pushState('', '', '');
 }
 
@@ -1862,7 +1999,7 @@ let toggleCssOverflow = () => {
 }
 
 
-let prevent_tab_from_getting_out = function (pe) { // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
+let preventTabFromGettingOut = function (pe) { // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
     if (pe.key == 'Tab') {
         pe.preventDefault();
         let start = this.selectionStart;
@@ -1918,7 +2055,7 @@ let rebuildMenuDiv = () => {
 
     let vadd_root_task_button = createAndAddChild(gmenu_div, 'input', { type: 'button', value: 'add root task', onclick: add_root_task }, ['margin5px']);
 
-    let vupload_data_button = createAndAddChild(gmenu_div, 'input', { type: 'button', value: 'upload db', onclick: upload_file }, ['margin5px']);
+    let vupload_data_button = createAndAddChild(gmenu_div, 'input', { type: 'button', value: 'upload db', onclick: uploadFile }, ['margin5px']);
 
     // let load_fake_tasks_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'generate fake tasks', onclick: load_fake_tasks }, ['margin5px']);
 
@@ -1991,8 +2128,8 @@ let rebuildMenuDiv = () => {
         rows: 51, cols: 230,
         style: 'border: 1px solid black',
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onkeyup: function () { update_after_timeout(gconfig.draft, 'value', this, gdefault_sleep_msecs) },
-        onkeydown: prevent_tab_from_getting_out,
+        onkeyup: function () { updateAfterTimeout(gconfig.draft, 'value', this, gdefault_sleep_msecs) },
+        onkeydown: preventTabFromGettingOut,
     });
 };
 
@@ -2034,7 +2171,7 @@ let assemblePage = () => {
 
 /**
  * The main function. Assemble the page and return.
- * @returns {undefined}
+ * @returns {Promise<undefined>}
  */
 let main = async () => {
     log('MAIN BEGIN');

@@ -1,5 +1,5 @@
-# simpletaskmanager
-A simple, browser based, task manager.
+# Gnumaru's Task Manager
+A simple, browser based, backend-free, task manager.
 
 Access it here:
 
