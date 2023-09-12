@@ -100,6 +100,7 @@ if the console yields the error "localhost/:1 Unchecked runtime.lastError: The m
 /**
 * @typedef {Object} GTMDatabase
 * @property {(null|Array<GTMTask>)} tasks tasks table
+* @property {(null|Array<GTMTask>)} task_notes task notes table
 * @property {(null|Array<GTMTaskStatus>)} statuses statuses table
 * @property {(null|Array<GTMTaskType>)} types types table
 * @property {(null|Array<GTMTaskPriority>)} priorities priorities table
@@ -119,9 +120,9 @@ let ghistory = globalThis.history;
 /** @type{Document} */
 let gdocument = gglobalThis.document;
 /** @type{HTMLElement} */
-let gbody = document.body;
+let gbody = gdocument.body;
 /** @type{StyleSheetList} */
-let gstyleSheets = document.styleSheets;
+let gstyleSheets = gdocument.styleSheets;
 /** @type{Storage} */
 let glocalStorage = gglobalThis.localStorage;
 
@@ -134,26 +135,29 @@ let gdraftTxtAreaDiv = null;
 /** @type{(undefined|null|Object)}*/
 let gconfig = null;
 /** @type{GTMDatabase} */
-let gdata = {
+let gDatabase = {
     // hold the task data itself
-    tasks: null,
+    tasks: [],
+    // hold comments on tasks
+    task_notes: [],
     // hold the statuses names
-    statuses: null,
+    statuses: [],
     // hold the possible task types, like bug fixing or new feature implementation
-    types: null,
+    types: [],
     // hold the possible task priorities, like low, medium, high or blocking
-    priorities: null,
+    priorities: [],
     // hold the roles names
-    roles: null,
+    roles: [],
     // hold the assignees names
-    assignees: null,
+    assignees: [],
     // hold the tags names
-    tags: null,
+    tags: [],
     // relation table between task and tags, so that we can assign any number of tags to a task
-    tag_task_rel: null,
+    tag_task_rel: [],
     // miscelaneous table, holding things like application configuration
-    config: null, // was erroneously named as other
+    config: [], // was erroneously named as other
 };
+
 let gschema = {
     tasks: [
 
@@ -178,12 +182,12 @@ let gsave_timeout = null;
 // search indexes
 // maps a task int id to all its children task objects
 let gtaskIdToChildren = null;
-// maps a given int id to its task object
-let gtask_id_to_task = null;
-// maps a given int id to its status object
-let gStatusIdToStatusObj = {};
+// // maps a given int id to its task object
+// let gtaskIdToTask = null;
+// // maps a given int id to its status object
+// let gStatusIdToStatusObj = {};
 
-gdata.statuses = [
+gDatabase.statuses = [
     {
         id: 1,
         name: 'To do',
@@ -202,18 +206,27 @@ gdata.statuses = [
     }
 ];
 
-for (let istatus of gdata.statuses) { // build up the status id to status obj lookup table
-    gStatusIdToStatusObj[istatus.id] = istatus
+// for (let istatus of gDatabase.statuses) { // build up the status id to status obj lookup table
+//     gDatabase.statuses.indexById[istatus.id] = istatus
+// }
+
+const isOfType = (pObj, pClassName) => {
+    return (typeof pObj == 'object') && `[object ${pClassName}]` == ('' + pObj);
 }
 
 const getStatusNameById = (pid) => {
-    if (pid in gStatusIdToStatusObj) {
-        return gStatusIdToStatusObj[pid].name;
+    if (gDatabase.statuses == null) {
+        return '';
+    }
+    // @ts-ignore indexById was added to the arrays
+    const vIndexById = gDatabase.statuses.indexById
+    if (pid in vIndexById) {
+        return vIndexById[pid].name;
     }
     return '';
 }
 
-gdata.types = [
+gDatabase.types = [
     {
         id: 1,
         name: 'New Feature',
@@ -229,7 +242,7 @@ gdata.types = [
     }
 ];
 
-gdata.priorities = [
+gDatabase.priorities = [
     {
         id: 1,
         name: 'Low',
@@ -245,7 +258,7 @@ gdata.priorities = [
     }
 ];
 
-gdata.roles = [
+gDatabase.roles = [
     {
         id: 1,
         name: 'Graphics',
@@ -281,7 +294,7 @@ gdata.roles = [
     }
 ];
 
-gdata.assignees = [
+gDatabase.assignees = [
     {
         id: 1,
         name: 'Me',
@@ -293,7 +306,7 @@ gdata.assignees = [
     },
 ];
 
-gdata.tags = [
+gDatabase.tags = [
     {
         id: 1,
         name: 'Easy',
@@ -321,7 +334,7 @@ gdata.tags = [
     },
 ];
 
-gdata.tag_task_rel = [
+gDatabase.tag_task_rel = [
     {
         id: 1,
         task_id: 0,
@@ -329,7 +342,7 @@ gdata.tag_task_rel = [
     }
 ];
 
-gdata.config = [
+gDatabase.config = [
     {
         id: 1,
         name: 'draft',
@@ -341,6 +354,15 @@ gdata.config = [
         value: false,
     }
 ]
+
+for (const ipropname in gDatabase) {
+    const vtable = gDatabase[ipropname];
+    const vindexById = {};
+    vtable.indexById = vindexById; // vamos guardar no proprio array um indice reverso por id
+    for (const irow of vtable) {
+        vindexById[irow.id] = irow;
+    }
+}
 
 
 
@@ -526,7 +548,7 @@ const getId = task_obj => {
 
 
 const getTaskById = id_int => {
-    return gtask_id_to_task[id_int] ?? null;
+    return gDatabase.tasks.indexById[id_int] ?? null;
 }
 
 
@@ -541,34 +563,45 @@ const isRightAncestorOfLeft = (pchild_obj, pancestor_obj_id) => {
 }
 
 
-const addTaskToIndex = task => {
-    let vid = task.id;
-    if (vid == 99) {
-        vid = vid;
-    }
-    let vparent_id = task.parent_id;
-    gtask_id_to_task[vid] = task;
+const rebuildParentTaskToChildTaskIndex = pTask => {
+    let vId = pTask.id;
+    // if (vId == 99) {
+    //     vId = vId; // breakpoint
+    // }
+    let vParentId = pTask.parent_id;
+    // gDatabase.tasks.indexById[vId] = pTask;
 
-    let vchildren = gtaskIdToChildren[vparent_id] ?? [];
-    vchildren.push(task);
-    gtaskIdToChildren[vparent_id] = vchildren;
+    let vChildren = gtaskIdToChildren[vParentId] ?? [];
+    vChildren.push(pTask);
+    gtaskIdToChildren[vParentId] = vChildren;
 }
 
 
 const rebuildIndexes = () => {
-    if (gdata.tasks == null) {
+    // if (gDatabase.tasks == null) {
+    //     return;
+    // }
+    gtaskIdToChildren = {};
+    // gDatabase.tasks.indexById = {}
+    for (const ipropname in gDatabase) {
+        const vtable = gDatabase[ipropname];
+        const vindexById = {};
+        vtable.indexById = vindexById; // vamos guardar no proprio array um indice reverso por id
+        for (const irow of vtable) {
+            vindexById[irow.id] = irow;
+        }
+    }
+    if (gDatabase.tasks == null) {
         return;
     }
-    gtaskIdToChildren = {};
-    gtask_id_to_task = {}
-    for (let itask of gdata.tasks) {
-        addTaskToIndex(itask);
+    for (let itask of gDatabase.tasks) {
+        rebuildParentTaskToChildTaskIndex(itask);
     }
 };
 
 
 const replaceTasks = new_tasks => {
-    gdata.tasks = new_tasks;
+    gDatabase.tasks = new_tasks;
     rebuildIndexes();
 }
 
@@ -581,7 +614,7 @@ const yearsFromNow = years => {
 
 
 const createAndAddChild = (pparent_element, ptag_name, pattributes, pcss_classes, pfuncs, pbefore_first_child = false) => {
-    let vnew_el = document.createElement(ptag_name);
+    let vnew_el = gdocument.createElement(ptag_name);
     if (pbefore_first_child) {
         pparent_element.insertBefore(vnew_el, pparent_element.firstChild);
     } else {
@@ -718,12 +751,12 @@ const loadFromUrl = () => {
 
 
 const loadConfig = () => {
-    if (gdata.config == null) {
+    if (gDatabase.config == null) {
         return;
     }
     gconfig = {};
     let hasDraft = false
-    for (let ival of gdata.config) {
+    for (let ival of gDatabase.config) {
         if (ival.name == 'draft') {
             hasDraft = true;
         }
@@ -732,7 +765,7 @@ const loadConfig = () => {
     if (!hasDraft) {
         return;
     }
-    let vdraftArea = /** @type{HTMLTextAreaElement} */(document.getElementById('draft_area_id'));
+    let vdraftArea = /** @type{HTMLTextAreaElement} */(gdocument.getElementById('draft_area_id'));
     if (vdraftArea == null) {
         return;
     }
@@ -764,7 +797,7 @@ const downloadString = (pfname, pdatastring) => {
 
 
 const downloadJson = () => {
-    let vtasks_str = JSON.stringify(gdata.tasks);
+    let vtasks_str = JSON.stringify(gDatabase.tasks);
     downloadString('db.json', vtasks_str);
 }
 
@@ -772,10 +805,10 @@ const downloadJson = () => {
 const generateMultitableTsvText = (pquote_char = gdefault_quote_char, pcolumn_separator = gdefault_column_separator) => {
     let vstr = '';
     log('________________________________________________________________________________');
-    for (let itable_name in gdata) {
+    for (let itable_name in gDatabase) {
         // log('begin storing ' + itable_name)
         vstr = vstr + itable_name + gdefault_row_separator;
-        let vrows = gdata[itable_name];
+        let vrows = gDatabase[itable_name];
         if (vrows == null) {
             continue
         }
@@ -908,7 +941,21 @@ const parseTsvTableText = (ptable_text, prow_separator = gdefault_row_separator,
         return; // TODO DELETE
     } // TODO DELETE
     let vvalues = parseTableRows(vtable_name, vrows, pcolumn_separator, pquote_char);
-    gdata[vtable_name] = vvalues;
+    if (!(vtable_name in gDatabase)) {
+        gDatabase[vtable_name] = vvalues; // substitui um obj por outro
+    } else {
+        const byId = {}
+        for (const vOldObj of gDatabase[vtable_name]) {
+            byId[vOldObj.id] = vOldObj;
+        }
+        for (const vNewObj of vvalues) {
+            if (vNewObj.id in byId) { // if found, replace
+                byId[vNewObj.id] = vNewObj;
+            } else { // if not found, push
+                gDatabase[vtable_name].push(vNewObj);
+            }
+        }
+    }
 }
 
 
@@ -928,7 +975,7 @@ const parseMultitableTsvText = (ptext, ptable_separator = gdefault_table_separat
     for (let vtable_text of vtables_text_arr) {
         parseTsvTableText(vtable_text, prow_separator, pcolumn_separator, pquote_char);
     }
-    let vdraftArea = /** @type{HTMLTextAreaElement} */(document.getElementById('draft_area_id'));
+    let vdraftArea = /** @type{HTMLTextAreaElement} */(gdocument.getElementById('draft_area_id'));
     if (vdraftArea == null) {
         return;
     }
@@ -954,7 +1001,7 @@ const uploadInputOnchange = () => {
         let vsuccess = false;
         if (typeof vtxt_data == 'string') {
             try {
-                gdata = JSON.parse(vtxt_data); // allows uploading a json instead of a mttsv
+                gDatabase = JSON.parse(vtxt_data); // allows uploading a json instead of a mttsv
                 log('sucess loading json');
                 vsuccess = true;
 
@@ -1163,10 +1210,10 @@ const saveToIndexeddb = pstep => {
                 }
                 let vdb = event.target.result;
                 let vobjectStore = vdb.createObjectStore("tasks", { keyPath: "id" });
-                if (gdata.tasks == null) {
+                if (gDatabase.tasks == null) {
                     return;
                 }
-                for (let itask of gdata.tasks) {
+                for (let itask of gDatabase.tasks) {
                     vobjectStore.add(itask);
                 }
                 log('saved to indexeddb');
@@ -1268,16 +1315,16 @@ const addChildTask = (ptaskObj, pparentTaskId, pbefore) => {
         }
         vnewChildTask[ikey] = ptaskObj[ikey];
     }
-    if (gdata.tasks != null) {
+    if (gDatabase.tasks != null) {
         if (pbefore) {
-            gdata.tasks.unshift(vnewChildTask);
+            gDatabase.tasks.unshift(vnewChildTask);
 
         } else {
-            gdata.tasks.push(vnewChildTask);
+            gDatabase.tasks.push(vnewChildTask);
         }
     }
 
-    addTaskToIndex(vnewChildTask);
+    rebuildParentTaskToChildTaskIndex(vnewChildTask);
     return vnewChildTask;
 };
 
@@ -1328,7 +1375,7 @@ const makeChildOfPrevious = (pcontainer, ptask) => {
     }
 
     let vprevious_task_id = parseInt(vprevious_div.extra_data.task.id);
-    let vprevious_task_obj = gtask_id_to_task[vprevious_task_id];
+    let vprevious_task_obj = gDatabase.tasks.indexById[vprevious_task_id];
     let vprevious_children_div = vprevious_div.querySelector('div.children');
     pcontainer.parentElement.removeChild(pcontainer);
     vprevious_children_div.appendChild(pcontainer)
@@ -1411,7 +1458,7 @@ const hideTaskUntilReload = (pdiv) => {
 
 
 const goUpOnList = task_obj => {
-    let vcontainer_div = document.getElementById(gid_container_div_prefix + task_obj.id);
+    let vcontainer_div = gdocument.getElementById(gid_container_div_prefix + task_obj.id);
     let vprevious_container = vcontainer_div.previousSibling;
     if (!vprevious_container) {
         return
@@ -1425,12 +1472,12 @@ const goUpOnList = task_obj => {
     let vold_order = task_obj.order;
     task_obj.order = vother_task.order;
     vother_task.order = vold_order;
-    log(gdata.tasks);
+    log(gDatabase.tasks);
 }
 
 
 const goDownOnList = task_obj => {
-    let vcontainer_div = document.getElementById(gid_container_div_prefix + task_obj.id);
+    let vcontainer_div = gdocument.getElementById(gid_container_div_prefix + task_obj.id);
     let vnext_container = vcontainer_div.nextSibling;
     if (!vnext_container) {
         return
@@ -1447,7 +1494,7 @@ const goDownOnList = task_obj => {
     let vold_order = task_obj.order;
     task_obj.order = vother_task.order;
     vother_task.order = vold_order;
-    log(gdata.tasks);
+    log(gDatabase.tasks);
 }
 
 
@@ -1576,7 +1623,7 @@ const updateAfterTimeout = (ptaskObj, pfieldName, pinputElement, psleepMsecs = g
 
 
 const deleteTask = (pdiv, ptask_to_delete) => {
-    let vtasks = gdata.tasks;
+    let vtasks = gDatabase.tasks;
     let vindex = vtasks.indexOf(ptask_to_delete);
     // removes 1 element starting at index 'index'
     vtasks.splice(vindex, 1)
@@ -1663,6 +1710,7 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
     let vclassList = vRootTaskDiv.classList;
     vclassList.add('idented');
     vclassList.add('container');
+    vclassList.add('parentAndChildrenContainer');
 
     let vcurrent_task_div = createAndAddChild(vRootTaskDiv, 'div');
     vclassList = vcurrent_task_div.classList;
@@ -1708,18 +1756,18 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
     let vopcolapse = createAndAddChild(vselect, 'option', { textContent: 'collapse/expand' });
     let vopdescription = createAndAddChild(vselect, 'option', { textContent: 'description' });
 
-    let vname_div = createAndAddChild(vname_and_menu_div, 'div');
-    vname_div.style.display = 'inline-block';
-    let vbuttons_div = createAndAddChild(vcurrent_task_div, 'div'); // buttons before form
-    let vcurrent_form = createAndAddChild(vcurrent_task_div, 'div', { id: vform_id });
-    vname_div.onclick = () =>
-        toggleHidden([vcurrent_form, vbuttons_div]);
+    let vNameDiv = createAndAddChild(vname_and_menu_div, 'div');
+    vNameDiv.style.display = 'inline-block';
+    let vButtonsDiv = createAndAddChild(vcurrent_task_div, 'div'); // buttons before form
+    let vCurrentForm = createAndAddChild(vcurrent_task_div, 'div', { id: vform_id });
+    vNameDiv.onclick = () =>
+        toggleHidden([vCurrentForm, vButtonsDiv]);
     // vname_div.oncontextmenu = function (pe) {
     //     pe.preventDefault();
     //     // TODO: create context menu
     //     // https://www.geeksforgeeks.org/how-to-add-a-custom-right-click-menu-to-a-webpage/
     // }
-    toggleHidden([vcurrent_form, vbuttons_div]);
+    toggleHidden([vCurrentForm, vButtonsDiv]);
 
 
 
@@ -1734,43 +1782,50 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
 
 
 
-    let vidSpan = createAndAddChild(vname_div, 'span', { textContent: `${pTaskObj.indent}-#${vTaskId}: ` }, vcssclasses);
-    let vnameSpan = createAndAddChild(vname_div, 'span', {
+    let vidSpan = createAndAddChild(vNameDiv, 'span', { textContent: `${pTaskObj.indent}-#${vTaskId}: ` }, vcssclasses);
+    let vnameSpan = createAndAddChild(vNameDiv, 'span', {
         id: gid_name_div_prefix + vTaskId,
         textContent: pTaskObj.name,
     }, vcssclasses);
-    let vStatusSpan = createAndAddChild(vname_div, 'span', {
+    let vStatusSpan = createAndAddChild(vNameDiv, 'span', {
         textContent: ' - ' + getStatusNameById(pTaskObj.status_id)
     }, vcssclasses);
 
 
-    let vlabel_name = createAndAddChild(vcurrent_form, 'label', { textContent: 'Name:' });
-    let vinput_name = createAndAddChild(vcurrent_form, 'textarea', {
+    let vlabel_name = createAndAddChild(vCurrentForm, 'label', { textContent: 'Name:' });
+    let vinput_name = createAndAddChild(vCurrentForm, 'textarea', {
         value: pTaskObj.name,
         rows: 1, cols: 40,
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onkeyup: function () {
+        onkeyup: function (pEvt) {
+            if (isOfType(pEvt, 'KeyboardEvent') && pEvt.code == 'Escape') {
+                toggleHidden([vCurrentForm, vButtonsDiv]);
+            }
             updateAfterTimeout(pTaskObj, 'name', this, gdefaultSleepMsecs, identity, () => {
-                document.getElementById(gid_name_div_prefix + vTaskId).innerText = pTaskObj.name;
+                gdocument.getElementById(gid_name_div_prefix + vTaskId).innerText = pTaskObj.name;
             })
         },
     });
-    let vbr0 = createAndAddChild(vcurrent_form, 'br');
+    let vbr0 = createAndAddChild(vCurrentForm, 'br');
 
-    let vlabel_description = createAndAddChild(vcurrent_form, 'label', { textContent: 'Description:' });
-    let vinput_description = createAndAddChild(vcurrent_form, 'textarea', {
+    let vLabelDescription = createAndAddChild(vCurrentForm, 'label', { textContent: 'Description:' });
+    let vInputDescription = createAndAddChild(vCurrentForm, 'textarea', {
         value: pTaskObj.description,
-        rows: 2,
-        cols: 40,
+        rows: 4,
+        cols: 80,
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-        onkeyup: function () {
-            updateAfterTimeout(pTaskObj, 'description', this, gdefaultSleepMsecs)
+        onkeyup: pEvt => {
+            if (isOfType(pEvt, 'KeyboardEvent') && pEvt.code == 'Escape') {
+                toggleHidden([vCurrentForm, vButtonsDiv]);
+            } else {
+                updateAfterTimeout(pTaskObj, 'description', vInputDescription, gdefaultSleepMsecs)
+            }
         },
     });
-    let vbr1 = createAndAddChild(vcurrent_form, 'br');
+    let vbr1 = createAndAddChild(vCurrentForm, 'br');
 
-    let vlabel_start_date = createAndAddChild(vcurrent_form, 'label', { textContent: 'Start Date:' });
-    let vinput_start_date = createAndAddChild(vcurrent_form, 'input', {
+    let vlabel_start_date = createAndAddChild(vCurrentForm, 'label', { textContent: 'Start Date:' });
+    let vinput_start_date = createAndAddChild(vCurrentForm, 'input', {
         type: 'date',
         value: (new Date(pTaskObj.start_date)).toISOString().substring(0, 10),
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
@@ -1778,10 +1833,10 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
             updateAfterTimeout(pTaskObj, 'start_date', this, gdefaultSleepMsecs, new_date_ms)
         },
     });
-    let vbr2 = createAndAddChild(vcurrent_form, 'br');
+    let vbr2 = createAndAddChild(vCurrentForm, 'br');
 
-    let vlabel_due_date = createAndAddChild(vcurrent_form, 'label', { textContent: 'Due Date:' });
-    let vinput_due_date = createAndAddChild(vcurrent_form, 'input', {
+    let vlabel_due_date = createAndAddChild(vCurrentForm, 'label', { textContent: 'Due Date:' });
+    let vinput_due_date = createAndAddChild(vCurrentForm, 'input', {
         type: 'date',
         value: (new Date(pTaskObj.due_date)).toISOString().substring(0, 10),
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
@@ -1789,84 +1844,80 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
             updateAfterTimeout(pTaskObj, 'due_date', this, gdefaultSleepMsecs, new_date_ms)
         },
     });
-    let vbr3 = createAndAddChild(vcurrent_form, 'br');
+    let vbr3 = createAndAddChild(vCurrentForm, 'br');
 
-    let vlabel_select_asignee = createAndAddChild(vcurrent_form, 'label', { textContent: 'Assignee:' });
-    let vselect_asignee = createAndAddChild(vcurrent_form, 'select', {
+    let vlabel_select_asignee = createAndAddChild(vCurrentForm, 'label', { textContent: 'Assignee:' });
+    let vselect_asignee = createAndAddChild(vCurrentForm, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
         onchange: function () {
             updateAfterTimeout(pTaskObj, 'assignee_id', this, gdefaultSleepMsecs, parseInt)
         },
     });
-    addSelectOptions(vselect_asignee, gdata.assignees, pTaskObj.assignee_id);
-    let vbr4 = createAndAddChild(vcurrent_form, 'br');
+    addSelectOptions(vselect_asignee, gDatabase.assignees, pTaskObj.assignee_id);
+    let vbr4 = createAndAddChild(vCurrentForm, 'br');
 
-    let vlabel_select_role = createAndAddChild(vcurrent_form, 'label', { textContent: 'Role:' });
-    let vselect_role = createAndAddChild(vcurrent_form, 'select', {
+    let vlabel_select_role = createAndAddChild(vCurrentForm, 'label', { textContent: 'Role:' });
+    let vselect_role = createAndAddChild(vCurrentForm, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
         onchange: function () {
             updateAfterTimeout(pTaskObj, 'role_id', this, gdefaultSleepMsecs, parseInt)
         },
     });
-    addSelectOptions(vselect_role, gdata.roles, pTaskObj.role_id);
-    let vbr5 = createAndAddChild(vcurrent_form, 'br');
+    addSelectOptions(vselect_role, gDatabase.roles, pTaskObj.role_id);
+    let vbr5 = createAndAddChild(vCurrentForm, 'br');
 
-    const vlabel_select_status = createAndAddChild(vcurrent_form, 'label', { textContent: 'Status:' });
-    const vselectStatus = createAndAddChild(vcurrent_form, 'select', {
+    const vlabel_select_status = createAndAddChild(vCurrentForm, 'label', { textContent: 'Status:' });
+    const vselectStatus = createAndAddChild(vCurrentForm, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
         onchange: function () {
             const vnewStatusId = parseInt(vselectStatus.value);
             if (vnewStatusId > 100 && vnewStatusId < 201) { // status id between 101 and 200 is the group of 'doing' status. that is, when a task is doing, set a border
-                vRootTaskDiv.style.borderStyle = 'solid';
-                vRootTaskDiv.style.borderWidth = '3px';
                 vRootTaskDiv.style.borderColor = 'red';
+            } else if (vnewStatusId == 2) { // next is yellow
+                vRootTaskDiv.style.borderColor = 'orange';
             } else { // otherwise, no border
-                vRootTaskDiv.style.borderStyle = null; // must be null. undefined doesnt work
-                vRootTaskDiv.style.borderWidth = null;
-                vRootTaskDiv.style.borderColor = null;
+                vRootTaskDiv.style.borderColor = '#00000000'; // full transparency
             }
             vStatusSpan.textContent = ' - ' + getStatusNameById(vnewStatusId);
             updateAfterTimeout(pTaskObj, 'status_id', this, gdefaultSleepMsecs, parseInt)
         },
     });
-    addSelectOptions(vselectStatus, gdata.statuses, pTaskObj.status_id);
+    addSelectOptions(vselectStatus, gDatabase.statuses, pTaskObj.status_id);
     const curStatusId = parseInt(vselectStatus.value);
     if (vTaskId == 106) {
         let a = 0;
     }
     if (curStatusId > 100 && curStatusId < 201) {
-        vRootTaskDiv.style.borderStyle = 'solid';
-        vRootTaskDiv.style.borderWidth = '3px';
         vRootTaskDiv.style.borderColor = 'red';
+    } else if (curStatusId == 2) { // next is yellow
+        vRootTaskDiv.style.borderColor = 'orange';
     } else { // otherwise, no border
-        vRootTaskDiv.style.borderStyle = null; // must be null. undefined doesnt work
-        vRootTaskDiv.style.borderWidth = null;
-        vRootTaskDiv.style.borderColor = null;
+        vRootTaskDiv.style.borderColor = '#00000000'; // full transparency
     }
-    let vbr6 = createAndAddChild(vcurrent_form, 'br');
+    let vbr6 = createAndAddChild(vCurrentForm, 'br');
 
-    let vlabel_select_type = createAndAddChild(vcurrent_form, 'label', { textContent: 'Type:' });
-    let vselect_type = createAndAddChild(vcurrent_form, 'select', {
+    let vlabel_select_type = createAndAddChild(vCurrentForm, 'label', { textContent: 'Type:' });
+    let vselect_type = createAndAddChild(vCurrentForm, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
         onchange: function () {
             updateAfterTimeout(pTaskObj, 'type_id', this, gdefaultSleepMsecs, parseInt)
         },
     });
-    addSelectOptions(vselect_type, gdata.types, pTaskObj.type_id);
-    let vbr7 = createAndAddChild(vcurrent_form, 'br');
+    addSelectOptions(vselect_type, gDatabase.types, pTaskObj.type_id);
+    let vbr7 = createAndAddChild(vCurrentForm, 'br');
 
-    let vlabel_select_priority = createAndAddChild(vcurrent_form, 'label', { textContent: 'Priority:' });
-    let vselect_priority = createAndAddChild(vcurrent_form, 'select', {
+    let vlabel_select_priority = createAndAddChild(vCurrentForm, 'label', { textContent: 'Priority:' });
+    let vselect_priority = createAndAddChild(vCurrentForm, 'select', {
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
         onchange: function () {
             updateAfterTimeout(pTaskObj, 'priority_id', this, gdefaultSleepMsecs, parseInt)
         },
     });
-    addSelectOptions(vselect_priority, gdata.priorities, pTaskObj.priority_id);
-    let vbr8 = createAndAddChild(vcurrent_form, 'br');
+    addSelectOptions(vselect_priority, gDatabase.priorities, pTaskObj.priority_id);
+    let vbr8 = createAndAddChild(vCurrentForm, 'br');
 
-    let vLabelInputNumberTodoOrder = createAndAddChild(vcurrent_form, 'label', { textContent: 'TODO order:' });
-    let vInputNumberTodoOrder = createAndAddChild(vcurrent_form, 'input', {
+    let vLabelInputNumberTodoOrder = createAndAddChild(vCurrentForm, 'label', { textContent: 'TODO order:' });
+    let vInputNumberTodoOrder = createAndAddChild(vCurrentForm, 'input', {
         type: 'number',
         value: pTaskObj.todo_order,
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
@@ -1879,28 +1930,28 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
 
 
     // let focus_button = create_and_add_child(buttons_div, 'input', { type: 'button', value: 'focus task', onclick: () => focus_task(focus_button, container_div) }, ['margin5px']);
-    let vhighlight_button = createAndAddChild(vbuttons_div, 'input', {
+    let vhighlight_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'highlight task', onclick: () =>
             highlightTask(vhighlight_button, vRootTaskDiv)
     }, ['margin5px']);
-    let vhidebtn = createAndAddChild(vbuttons_div, 'input', {
+    let vhidebtn = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'temporarily hide', onclick: () =>
             hideTaskUntilReload(vRootTaskDiv)
     }, ['margin5px']);
-    let vhide_show_children_button = createAndAddChild(vbuttons_div, 'input', { type: 'button', value: 'collapse', onclick: hideShowChildren }, ['margin5px']);
-    let vadd_child_task_button = createAndAddChild(vbuttons_div, 'input', {
+    let vhide_show_children_button = createAndAddChild(vButtonsDiv, 'input', { type: 'button', value: 'collapse', onclick: hideShowChildren }, ['margin5px']);
+    let vadd_child_task_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'add child task', onclick: () =>
             addChildTaskAndDiv(vchildren_div, pTaskObj)
     }, ['margin5px']);
-    let vdelete_task_button = createAndAddChild(vbuttons_div, 'input', {
+    let vdelete_task_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'delete task', onclick: () =>
             deleteTaskDialog(vRootTaskDiv, pTaskObj)
     }, ['margin5px']);
-    let vreparent_task_button = createAndAddChild(vbuttons_div, 'input', {
+    let vreparent_task_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'reparent task', onclick: () =>
             reparentTaskPrompt(pTaskObj)
     }, ['margin5px']);
-    let vmake_sibling_of_parent_button = createAndAddChild(vbuttons_div, 'input', {
+    let vmake_sibling_of_parent_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button',
         value: 'move left',
         onclick: () =>
@@ -1918,16 +1969,16 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
     //     backgroundColor: 'hsla(270, 100%, 80%, 0.7)',
     //     float: 'none',
     // })
-    let vmake_child_of_previous_sibling_button = createAndAddChild(vbuttons_div, 'input', {
+    let vmake_child_of_previous_sibling_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'move right', onclick: () =>
             makeChildOfPrevious(vRootTaskDiv, pTaskObj)
     }, ['margin5px']);
     // unimplemented
-    let vgo_up_on_list_button = createAndAddChild(vbuttons_div, 'input', {
+    let vgo_up_on_list_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'move up', onclick: () =>
             goUpOnList(pTaskObj)
     }, ['margin5px', 'up']);
-    let vgo_down_on_list_button = createAndAddChild(vbuttons_div, 'input', {
+    let vgo_down_on_list_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'move down', onclick: () =>
             goDownOnList(pTaskObj)
     }, ['margin5px']);
@@ -1980,7 +2031,7 @@ const rebuildTaskTreeViewDiv = () => {
 
 const clearTasks = () => {
     gsequences.tasks = 0;
-    gdata.tasks = [];
+    gDatabase.tasks = [];
     rebuildIndexes();
     loadConfig();
     ghistory.pushState('', '', '');
@@ -2194,7 +2245,8 @@ const loadData = () => {
  * @returns {undefined}
  */
 const assemblePage = () => {
-    assert(gdata.tasks == null, 'data.tasks should be null here, something is wrong.');
+    // assert(gDatabase.tasks == null, 'data.tasks should be null here, something is wrong.');
+    assert(gDatabase.tasks != null && gDatabase.tasks.length < 1, 'data.tasks should be empty here, something is wrong.');
     loadData();
     rebuildRootDiv();
     rebuildTaskTreeViewDiv();
