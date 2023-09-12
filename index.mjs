@@ -45,6 +45,12 @@ if the console yields the error "localhost/:1 Unchecked runtime.lastError: The m
 */
 
 /**
+* @typedef {Object} GTMTaskNote
+* @property {number} id int: pk
+* @property {string} text the note text
+*/
+
+/**
 * @typedef {Object} GTMTaskStatus
 * @property {number} id int: pk
 * @property {string} name the task status name
@@ -93,14 +99,14 @@ if the console yields the error "localhost/:1 Unchecked runtime.lastError: The m
 /**
 * @typedef {Object} GTMConfig
 * @property {number} id int: pk
-* @property {string} name the config key
+* @property {string} unique_name the config key
 * @property {(boolean|number|string)} value the config value
 */
 
 /**
 * @typedef {Object} GTMDatabase
 * @property {(null|Array<GTMTask>)} tasks tasks table
-* @property {(null|Array<GTMTask>)} task_notes task notes table
+* @property {(null|Array<GTMTaskNote>)} task_notes task notes table
 * @property {(null|Array<GTMTaskStatus>)} statuses statuses table
 * @property {(null|Array<GTMTaskType>)} types types table
 * @property {(null|Array<GTMTaskPriority>)} priorities priorities table
@@ -133,7 +139,7 @@ let gupperMenuDiv = null;
 let gtaskTreeViewDiv = null;
 let gdraftTxtAreaDiv = null;
 /** @type{(undefined|null|Object)}*/
-let gconfig = null;
+// let gConfig = null;
 /** @type{GTMDatabase} */
 let gDatabase = {
     // hold the task data itself
@@ -171,9 +177,9 @@ let gid_form_div_prefix = 'id_form_div_';
 let gid_children_div_prefix = 'id_children_div_';
 let gid_name_div_prefix = 'id_name_div_';
 let gdefault_table_separator = '\n\n';
-let gdefault_row_separator = '\n';
-let gdefault_column_separator = '\t';
-let gdefault_quote_char = '"';
+let gDefaultRowSeparator = '\n';
+let gDefaultColumnSeparator = '\t';
+let gDefaultQuoteChar = '"';
 let gsequences = {};
 // timeout used to save the input data to its task object. instead of saving every keypress, we only save after one second passed since the last keyup event
 let gdefaultSleepMsecs = 500;
@@ -186,6 +192,13 @@ let gtaskIdToChildren = null;
 // let gtaskIdToTask = null;
 // // maps a given int id to its status object
 // let gStatusIdToStatusObj = {};
+
+gDatabase.task_notes = [
+    {
+        id: 1,
+        text: 'dummy note',
+    }
+]
 
 gDatabase.statuses = [
     {
@@ -206,8 +219,18 @@ gDatabase.statuses = [
     }
 ];
 
+const isTodoStatusEquivalent = pId => {
+    return pId >= 1 && pId <= 100;
+}
+const isDoingStatusEquivalent = pId => {
+    return pId >= 101 && pId <= 200;
+}
+const isDoneStatusEquivalent = pId => {
+    return pId >= 201; //  && pId <= 300;
+}
+
 // for (let istatus of gDatabase.statuses) { // build up the status id to status obj lookup table
-//     gDatabase.statuses.indexById[istatus.id] = istatus
+//     gDatabase.statuses.indexByUniqueIntegerId[istatus.id] = istatus
 // }
 
 const isOfType = (pObj, pClassName) => {
@@ -218,10 +241,10 @@ const getStatusNameById = (pid) => {
     if (gDatabase.statuses == null) {
         return '';
     }
-    // @ts-ignore indexById was added to the arrays
-    const vIndexById = gDatabase.statuses.indexById
-    if (pid in vIndexById) {
-        return vIndexById[pid].name;
+    // @ts-ignore indexByUniqueIntegerId was added to the arrays
+    const vindexByUniqueIntegerId = gDatabase.statuses.indexByUniqueIntegerId;
+    if (pid in vindexByUniqueIntegerId) {
+        return vindexByUniqueIntegerId[pid].name;
     }
     return '';
 }
@@ -345,24 +368,43 @@ gDatabase.tag_task_rel = [
 gDatabase.config = [
     {
         id: 1,
-        name: 'draft',
+        unique_name: 'draft',
         value: '',
     },
     {
         id: 2,
-        name: 'hide_completed',
-        value: false,
+        unique_name: 'hide_completed',
+        value: true,
     }
 ]
 
-for (const ipropname in gDatabase) {
-    const vtable = gDatabase[ipropname];
-    const vindexById = {};
-    vtable.indexById = vindexById; // vamos guardar no proprio array um indice reverso por id
-    for (const irow of vtable) {
-        vindexById[irow.id] = irow;
+const rebuildReverseIndexes = () => {
+    for (const iTableName in gDatabase) { // refaz os indices reversos de id numerico
+        const vTable = gDatabase[iTableName];
+        const vColNames = Object.keys(vTable);
+        const vHasUniqueNameColumn = vColNames.includes('unique_name')
+
+        const vIndexByUniqueIntegerId = {};
+        vTable.indexByUniqueIntegerId = vIndexByUniqueIntegerId; // vamos guardar no proprio array um indice reverso por id
+
+        const vIndexByUniqueStringName = {};
+        vTable.indexByUniqueStringName = vIndexByUniqueStringName; // vamos guardar no proprio array um indice reverso por id
+        for (const iRow of vTable) {
+            if ('id' in iRow) {
+                vIndexByUniqueIntegerId[iRow.id] = iRow; // every table HAS to have an unique integer id column. we COULD just assume its existence here
+            } else {
+                log('id should be mandatory for all tables, but this object does not have it')
+            }
+            if ('unique_name' in iRow) {
+                vIndexByUniqueStringName[iRow.unique_name] = iRow; // every table OPTIONALLY may have an unique string name column
+            } else if (vHasUniqueNameColumn) {
+                log('this table has a unique_name columne but this object does not have it')
+            }
+        }
     }
 }
+rebuildReverseIndexes();
+
 
 
 
@@ -548,7 +590,7 @@ const getId = task_obj => {
 
 
 const getTaskById = id_int => {
-    return gDatabase.tasks.indexById[id_int] ?? null;
+    return gDatabase.tasks.indexByUniqueIntegerId[id_int] ?? null;
 }
 
 
@@ -569,7 +611,7 @@ const rebuildParentTaskToChildTaskIndex = pTask => {
     //     vId = vId; // breakpoint
     // }
     let vParentId = pTask.parent_id;
-    // gDatabase.tasks.indexById[vId] = pTask;
+    // gDatabase.tasks.indexByUniqueIntegerId[vId] = pTask;
 
     let vChildren = gtaskIdToChildren[vParentId] ?? [];
     vChildren.push(pTask);
@@ -582,15 +624,16 @@ const rebuildIndexes = () => {
     //     return;
     // }
     gtaskIdToChildren = {};
-    // gDatabase.tasks.indexById = {}
-    for (const ipropname in gDatabase) {
-        const vtable = gDatabase[ipropname];
-        const vindexById = {};
-        vtable.indexById = vindexById; // vamos guardar no proprio array um indice reverso por id
-        for (const irow of vtable) {
-            vindexById[irow.id] = irow;
-        }
-    }
+    // gDatabase.tasks.indexByUniqueIntegerId = {}
+    rebuildReverseIndexes();
+    // for (const ipropname in gDatabase) { // refaz os indices reversos de id numerico
+    //     const vtable = gDatabase[ipropname];
+    //     const vindexByUniqueIntegerId = {};
+    //     vtable.indexByUniqueIntegerId = vindexByUniqueIntegerId; // vamos guardar no proprio array um indice reverso por id
+    //     for (const irow of vtable) {
+    //         vindexByUniqueIntegerId[irow.id] = irow;
+    //     }
+    // }
     if (gDatabase.tasks == null) {
         return;
     }
@@ -754,14 +797,14 @@ const loadConfig = () => {
     if (gDatabase.config == null) {
         return;
     }
-    gconfig = {};
-    let hasDraft = false
-    for (let ival of gDatabase.config) {
-        if (ival.name == 'draft') {
-            hasDraft = true;
-        }
-        gconfig[ival.name] = ival;
-    }
+    // gConfig = {};
+    let hasDraft = hasConfig('draft')
+    // for (let ival of gDatabase.config) {
+    //     if (ival.name == 'draft') {
+    //         hasDraft = true;
+    //     }
+    //     // gConfig[ival.name] = ival;
+    // }
     if (!hasDraft) {
         return;
     }
@@ -769,7 +812,54 @@ const loadConfig = () => {
     if (vdraftArea == null) {
         return;
     }
-    vdraftArea.value = gconfig.draft.value;
+    vdraftArea.value = getConfig('draft');
+}
+
+const hasConfig = (pUniqueName) => {
+    return pUniqueName in gDatabase.config.indexByUniqueStringName;
+}
+
+
+const getConfigObj = (pUniqueName) => {
+    const vIdx = gDatabase.config.indexByUniqueStringName;
+    if (pUniqueName in vIdx) {
+        return vIdx[pUniqueName];
+    }
+    return null;
+}
+
+const getConfig = (pUniqueName, pDefault = null, pForceCreate = false) => {
+    const vIdx = gDatabase.config.indexByUniqueStringName;
+    if (pUniqueName in vIdx) {
+        return vIdx[pUniqueName].value;
+    } else {
+        if (pForceCreate) {
+            const vNew = {
+                id: 0,
+                unique_name: pUniqueName,
+                value: pDefault,
+            }
+            vIdx[pUniqueName] = vNew;
+            gDatabase.config.push(vNew)
+        }
+        return pDefault;
+    }
+}
+
+const setConfig = (pUniqueName, pValue = null) => {
+    const vIdx = gDatabase.config.indexByUniqueStringName;
+    if (pUniqueName in vIdx) {
+        vIdx[pUniqueName].value = pValue;
+    } else {
+        const vNew = {
+            id: 0,
+            unique_name: pUniqueName,
+            value: pValue,
+        }
+        vIdx[pUniqueName] = vNew;
+        gDatabase.config.push(vNew)
+    }
+    return pValue;
 }
 
 
@@ -802,17 +892,17 @@ const downloadJson = () => {
 }
 
 
-const generateMultitableTsvText = (pquote_char = gdefault_quote_char, pcolumn_separator = gdefault_column_separator) => {
-    let vstr = '';
+const generateMultitableTsvText = (pQuoteChar = gDefaultQuoteChar, pColumnSeparator = gDefaultColumnSeparator) => {
+    let vStr = '';
     log('________________________________________________________________________________');
-    for (let itable_name in gDatabase) {
+    for (let iTableName in gDatabase) {
         // log('begin storing ' + itable_name)
-        vstr = vstr + itable_name + gdefault_row_separator;
-        let vrows = gDatabase[itable_name];
-        if (vrows == null) {
+        vStr = vStr + iTableName + gDefaultRowSeparator;
+        let vRows = gDatabase[iTableName];
+        if (vRows == null || vRows.length < 1) {
             continue
         }
-        let vrows0 = vrows[0]
+        let vrows0 = vRows[0]
         if (vrows0 == null) {
             continue
         }
@@ -820,139 +910,168 @@ const generateMultitableTsvText = (pquote_char = gdefault_quote_char, pcolumn_se
             if (startsAndEndsWith(ikey, '_')) {
                 continue; // non serialized property, usualy references to dom objects
             }
-            vstr += ikey + pcolumn_separator;
+            vStr += ikey + pColumnSeparator;
         }
-        vstr = vstr.substring(0, vstr.length - 1) + gdefault_row_separator;
+        vStr = vStr.substring(0, vStr.length - 1) + gDefaultRowSeparator;
 
-        for (let irow of vrows) {
+        for (let irow of vRows) {
             for (let ikey in irow) {
                 if (startsAndEndsWith(ikey, '_')) {
                     continue; // non serialized property, usualy references to dom objects
                 }
                 // its safer to stringify all the fields beforehand, so that strings become encapsulated in double quotes and the quotes itself get escaped, for example
-                let vvalue = JSON.stringify(irow[ikey]);
-                vstr += vvalue + pcolumn_separator;
+                let vOldVal = irow[ikey];
+                let vModifiedOldVal = vOldVal
+                if (typeof vModifiedOldVal == 'string') {
+                    vModifiedOldVal = vModifiedOldVal.trim();
+                    if (vModifiedOldVal == 'true' || vModifiedOldVal == 'false') {
+                        vModifiedOldVal = Boolean(vModifiedOldVal);
+                    } else {
+                        let vNum = parseFloat(vModifiedOldVal);
+                        if ('' + vNum == vModifiedOldVal) {
+                            vModifiedOldVal = vNum; // only for strings that seem numbers, if the string seems like a numeric string, convert it to number before json.stringify
+                        }
+                    }
+                }
+                let vNewVal = JSON.stringify(vModifiedOldVal);
+                vStr += vNewVal + pColumnSeparator;
             }
-            vstr = vstr.substring(0, vstr.length - 1) + gdefault_row_separator;
+            vStr = vStr.substring(0, vStr.length - 1) + gDefaultRowSeparator;
         }
-        vstr = vstr.substring(0, vstr.length - 1) + gdefault_table_separator;
-        log('finished storing ' + itable_name)
+        vStr = vStr.substring(0, vStr.length - 1) + gdefault_table_separator;
+        log('finished storing ' + iTableName)
     }
-    vstr = vstr.substring(0, vstr.length - gdefault_table_separator.length);
+    vStr = vStr.substring(0, vStr.length - gdefault_table_separator.length);
 
-    return vstr;
+    return vStr;
 }
 
 
-const downloadTsv = (pquote_char = gdefault_quote_char, pcolumn_separator = gdefault_column_separator) => {
+const downloadTsv = (pquote_char = gDefaultQuoteChar, pcolumn_separator = gDefaultColumnSeparator) => {
     let vstr = generateMultitableTsvText(pquote_char, pcolumn_separator);
     downloadString('db.mt.tsv', vstr);
 }
 
 
-const parseTableRows = (ptable_name, prows, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
-    if (!prows || prows.length < 1) {
+const parseTableRows = (pTableName, pRows, pColumnSeparator = gDefaultColumnSeparator, pQuoteChar = gDefaultQuoteChar) => {
+    if (!pRows || pRows.length < 1) {
         return [];
     }
-    let vhead = prows.shift().split(pcolumn_separator);
-    while (!vhead) {
-        vhead = prows.shift().split(pcolumn_separator);
+    let vHead = pRows.shift().split(pColumnSeparator);
+    while (!vHead) {
+        vHead = pRows.shift().split(pColumnSeparator);
     }
-    let vresult = [];
-    let vmax = 0;
-    for (let irow_txt of prows) {
-        let vtrimmed_row = irow_txt.trim();
-        if (!vtrimmed_row) {
+    let vResult = [];
+    let vMax = 0;
+    for (let iRowTxt of pRows) {
+        let vTrimmedRow = iRowTxt.trim();
+        if (!vTrimmedRow) {
             // skip any empty lines that may appear in the table text
             continue;
         }
         // let data = Object.assign({}, schema[table_name]);
-        let vdata = {};
-        if (ptable_name == 'tasks') {
-            vdata = newTask(null, false);
+        let vData = {};
+        if (pTableName == 'tasks') {
+            vData = newTask(null, false);
         }
-        if (ptable_name == 'config') {
+        if (pTableName == 'config') {
             let a = 0; // breakpoint
         }
-        let vrow_arr = vtrimmed_row.split(pcolumn_separator);
-        let vcount = 0;
-        for (let ikey of vhead) {
-            let vval = vrow_arr[vcount] ?? '';
+        let vRowArr = vTrimmedRow.split(pColumnSeparator);
+        let vCount = 0;
+        for (let iKey of vHead) {
+            let vVal = vRowArr[vCount] ?? '';
+            // if (iKey == 'id' && typeof vVal == 'string' && vVal.startsWith('\"')) { // deleteme
+            if (typeof vVal == 'string' && vVal.startsWith('"\\')) { // deleteme
+                // temporarily skip corrupt data
+                continue; // deleteme
+            } // deleteme
+            let vNewVal = vVal;
             let a, b, c;
             try {
-                if (startsAndEndsWith(vval, '"')) {
+                if (startsAndEndsWith(vNewVal, '"')) {
                     // substitute backslash scaped double quotes by simple double quotes, because json.encode will turn '"' to '\"', and when the tsv is opened on a spreadsheet editor it will most likely be replaced by '\""'
-                    let vl = vval.length;
+                    let vl = vNewVal.length;
                     if (vl === 2) {
-                        // if this is an empty string, just let json parse parse it directly
+                        // if this is an empty string literarl (that is, just two double quotes, ""), just let json parse parse it directly
                     } else {
                         // log(val);
-                        vval = vval.replace(/\\""/g, '\\"');
+                        vNewVal = vNewVal.replace(/\\""/g, '\\"');
                         // log(val);
-                        if (vl != vval.length) {
+                        if (vl != vNewVal.length) {
                             // log('found');
                         }
                         // if this is a double quotes quoted string, remove escaped double quotes inside the string in case they where inserted by some spreadsheet app like libreoffice or ms office
                         // log(val);
-                        vl = vval.length;
-                        vval = vval.replace(/""/g, '"');
+                        vl = vNewVal.length;
+                        vNewVal = vNewVal.replace(/""/g, '"');
                         // log(val);
-                        if (vl != vval.length) {
+                        if (vl != vNewVal.length) {
                             // log('found');
                         }
                     }
                 }
-                vval = JSON.parse(vval);
-                b = vval;
+                try {
+                    vNewVal = JSON.parse(vNewVal);
+                } catch (e) {
+                    log(e);
+                }
+                // b = vNewVal; // BREAKPOINT
 
             } catch (e) {
                 log(e);
                 try {
-                    log(`"${vval}"`)
-                    vval = JSON.parse(`"${vval}"`);
-                    c = vval;
+                    log(`"${vNewVal}"`)
+                    vNewVal = JSON.parse(`"${vNewVal}"`);
+                    // c = vVal; // breakpoint
 
                 } catch (e2) {
                     log('something very wrong happenned');
                     log(e2);
                 }
             }
-            vdata[ikey] = vval;
-            vcount++;
+            vData[iKey] = vNewVal;
+            vCount++;
         }
-        if ('id' in vdata && typeof vdata.id == 'number' && vdata.id > vmax) {
-            vmax = vdata.id;
+        if ('id' in vData && typeof vData.id == 'number' && vData.id > vMax) {
+            vMax = vData.id;
         }
-        vresult.push(vdata);
+        if (Object.keys(vData).length < 1) {
+            continue; // skip empty objects
+        }
+        vResult.push(vData);
     }
-    gsequences[ptable_name] = vmax;
-    return vresult;
+    gsequences[pTableName] = vMax;
+    return vResult;
 };
 
 
-const parseTsvTableText = (ptable_text, prow_separator = gdefault_row_separator, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
-    let vtrimmed = ptable_text.trim();
-    let vrows = vtrimmed.split(prow_separator);
-    let vtable_name = vrows.shift().trim();
-    while (!vtable_name) {
-        vtable_name = vrows.shift().trim();
+const parseTsvTableText = (pTableText, pRowSeparator = gDefaultRowSeparator, pColumnSeparator = gDefaultColumnSeparator, pQuoteChar = gDefaultQuoteChar) => {
+    let vTrimmed = pTableText.trim();
+    let vRows = vTrimmed.split(pRowSeparator);
+    let vTableName = vRows.shift().trim();
+    while (!vTableName) {
+        vTableName = vRows.shift().trim();
     }
-    if (vtable_name == 'other') { // TODO DELETE
-        return; // TODO DELETE
+    if (vTableName == 'config') { // TODO DELETE
+        let a = 0; // breakpoint TODO DELETE
     } // TODO DELETE
-    let vvalues = parseTableRows(vtable_name, vrows, pcolumn_separator, pquote_char);
-    if (!(vtable_name in gDatabase)) {
-        gDatabase[vtable_name] = vvalues; // substitui um obj por outro
+    let vValues = parseTableRows(vTableName, vRows, pColumnSeparator, pQuoteChar);
+    if (!(vTableName in gDatabase)) {
+        gDatabase[vTableName] = vValues; // substitui um obj por outro
     } else {
         const byId = {}
-        for (const vOldObj of gDatabase[vtable_name]) {
+        for (const vOldObj of gDatabase[vTableName]) {
             byId[vOldObj.id] = vOldObj;
         }
-        for (const vNewObj of vvalues) {
+        for (const vNewObj of vValues) {
             if (vNewObj.id in byId) { // if found, replace
-                byId[vNewObj.id] = vNewObj;
+                const vOldObj = byId[vNewObj.id];
+                for (const iKey in vNewObj) {
+                    vOldObj[iKey] = vNewObj[iKey];
+                }
             } else { // if not found, push
-                gDatabase[vtable_name].push(vNewObj);
+                gDatabase[vTableName].push(vNewObj);
             }
         }
     }
@@ -969,7 +1088,7 @@ const prepareTsvTextForProcessing = ptext => {
 }
 
 
-const parseMultitableTsvText = (ptext, ptable_separator = gdefault_table_separator, prow_separator = gdefault_row_separator, pcolumn_separator = gdefault_column_separator, pquote_char = gdefault_quote_char) => {
+const parseMultitableTsvText = (ptext, ptable_separator = gdefault_table_separator, prow_separator = gDefaultRowSeparator, pcolumn_separator = gDefaultColumnSeparator, pquote_char = gDefaultQuoteChar) => {
     let vtables_text_arr = prepareTsvTextForProcessing(ptext).split(ptable_separator);
     gsequences = {};
     for (let vtable_text of vtables_text_arr) {
@@ -979,7 +1098,7 @@ const parseMultitableTsvText = (ptext, ptable_separator = gdefault_table_separat
     if (vdraftArea == null) {
         return;
     }
-    vdraftArea.value = gconfig.draft.value;
+    vdraftArea.value = getConfig('draft');// gConfig.draft.value;
 }
 
 
@@ -1014,7 +1133,9 @@ const uploadInputOnchange = () => {
         if (!vsuccess) {
             try {
                 parseMultitableTsvText(vtxt_data)
-                rebuildIndexes()
+                log(gDatabase.config[0]);
+                rebuildIndexes();
+                log(gDatabase.config[0]);
                 log('sucess loading tsv');
                 vsuccess = true;
 
@@ -1025,6 +1146,7 @@ const uploadInputOnchange = () => {
         }
 
         if (vsuccess) {
+            rebuildReverseIndexes();
             loadConfig();
             rebuildTaskTreeViewDiv();
             saveInAllPlaces();
@@ -1044,7 +1166,7 @@ const uploadFile = () => {
         gupload_input.onchange = uploadInputOnchange;
     }
     gupload_input.click();
-    // File chooser dialog can only be shown with a user activation.
+    // File chooser dialog can only be shown with a user activation, that's why whe HAVE to create an input type file and use the click() method
 }
 
 const getAllCookieNames = () => {
@@ -1103,7 +1225,7 @@ const getCookie = (pname) => {
 const saveToCookies = (vb64) => {
     // console.log(getAllCookieNames());
     if (vb64 == null) {
-        let vtsv = generateMultitableTsvText(gdefault_quote_char, gdefault_column_separator);
+        let vtsv = generateMultitableTsvText(gDefaultQuoteChar, gDefaultColumnSeparator);
         vb64 = compressToBase64(vtsv);
     }
     let vcount = 0;
@@ -1135,7 +1257,7 @@ const saveToCookies = (vb64) => {
 
 const saveToUrl = (vb64) => {
     if (vb64 == null) {
-        let vtsv = generateMultitableTsvText(gdefault_quote_char, gdefault_column_separator);
+        let vtsv = generateMultitableTsvText(gDefaultQuoteChar, gDefaultColumnSeparator);
         vb64 = compressToBase64(vtsv);
     }
     // document.URL
@@ -1222,7 +1344,7 @@ const saveToIndexeddb = pstep => {
 }
 
 
-const loadFromCookies = () => { // cookie cannot store enough data. only 4096 bytes (4KB) per cookie (and 180 cookies per domain on chrome, so 737460 bytes, that is 720KB, not even 1MB)
+const loadFromCookies = () => { // cookie cannot store enough data. only 4093 bytes (4KB) per cookie (and 180 cookies per domain on chrome, so 736740 bytes, that is 719KB, not even 1MB
     let vb64 = ''
     let vcookiesordered = getAllCookiesOrdered();
     for (let ipair of vcookiesordered) {
@@ -1251,7 +1373,7 @@ const loadFromCookies = () => { // cookie cannot store enough data. only 4096 by
 
 const saveToLocalStorage = (vb64) => { // local storage has a limit of 5MB on chrome
     if (vb64 == null) {
-        let vtsv = generateMultitableTsvText(gdefault_quote_char, gdefault_column_separator);
+        let vtsv = generateMultitableTsvText(gDefaultQuoteChar, gDefaultColumnSeparator);
         vb64 = compressToBase64(vtsv);
     }
     glocalStorage.setItem("data", vb64);
@@ -1290,7 +1412,7 @@ const loadFromLocalStorage = () => {
 
 
 const saveInAllPlaces = () => {
-    let vtsv = generateMultitableTsvText(gdefault_quote_char, gdefault_column_separator);
+    let vtsv = generateMultitableTsvText(gDefaultQuoteChar, gDefaultColumnSeparator);
     let vb64 = compressToBase64(vtsv);
     log(`saving data with lenght of ${vb64.length} bytes`);
     saveToUrl(vb64);
@@ -1375,7 +1497,7 @@ const makeChildOfPrevious = (pcontainer, ptask) => {
     }
 
     let vprevious_task_id = parseInt(vprevious_div.extra_data.task.id);
-    let vprevious_task_obj = gDatabase.tasks.indexById[vprevious_task_id];
+    let vprevious_task_obj = gDatabase.tasks.indexByUniqueIntegerId[vprevious_task_id];
     let vprevious_children_div = vprevious_div.querySelector('div.children');
     pcontainer.parentElement.removeChild(pcontainer);
     vprevious_children_div.appendChild(pcontainer)
@@ -1677,9 +1799,9 @@ const addSelectOptions = (pselect, poptions, pSelectedValue) => {
         }
         vidx++;
     }
-    if (pSelectedValue != 0) {
-        let a = 0; // breakpoint
-    }
+    // if (pSelectedValue != 0) {
+    //     let a = 0; // breakpoint
+    // }
     pselect.value = pSelectedValue;
 }
 
@@ -1871,7 +1993,7 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
         onchange: function () {
             const vnewStatusId = parseInt(vselectStatus.value);
-            if (vnewStatusId > 100 && vnewStatusId < 201) { // status id between 101 and 200 is the group of 'doing' status. that is, when a task is doing, set a border
+            if (isDoingStatusEquivalent(vnewStatusId)) { // status id between 101 and 200 is the group of 'doing' status. that is, when a task is doing, set a border
                 vRootTaskDiv.style.borderColor = 'red';
             } else if (vnewStatusId == 2) { // next is yellow
                 vRootTaskDiv.style.borderColor = 'orange';
@@ -1887,11 +2009,11 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
     if (vTaskId == 106) {
         let a = 0;
     }
-    if (curStatusId > 100 && curStatusId < 201) {
+    if (isDoingStatusEquivalent(curStatusId)) {
         vRootTaskDiv.style.borderColor = 'red';
     } else if (curStatusId == 2) { // next is yellow
         vRootTaskDiv.style.borderColor = 'orange';
-    } else { // otherwise, no border
+    } else { // otherwise, with transparent border (we use transparent border instead of removing the border in order to not mess up the layout that happens when putting and removing the border)
         vRootTaskDiv.style.borderColor = '#00000000'; // full transparency
     }
     let vbr6 = createAndAddChild(vCurrentForm, 'br');
@@ -1993,12 +2115,12 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
 
     let vordered_child_tasks = vchild_tasks.slice().sort(taskCompareByOrder);
     let vorder = 0;
-    let vhide_completed = gconfig.hide_completed.value;
+    let vhide_completed = getConfig('hide_completed');// gConfig.hide_completed.value;
     for (let ichild_task of vordered_child_tasks) {
         // fix order while assembling page
         ichild_task.order = ++vorder;
         ichild_task.indent = pTaskObj.indent + 1;
-        if (vhide_completed && ichild_task.status_id == 4) {
+        if (vhide_completed && isDoneStatusEquivalent(ichild_task.status_id)) {
             continue; // skip completed root tasks IF told to do so
         }
         createTaskContainer(ichild_task, vchildren_div)
@@ -2017,7 +2139,7 @@ const rebuildTaskTreeViewDiv = () => {
 
     let vordered_root_tasks = vrootTasks.slice().sort(taskCompareByOrder);
     let vorder = 0;
-    let vhide_completed = gconfig.hide_completed.value;
+    let vhide_completed = getConfig('hide_completed');// gConfig.hide_completed.value;
     for (let iroot_task of vordered_root_tasks) {
         iroot_task.order = ++vorder;
         iroot_task.indent = 0;
@@ -2098,9 +2220,9 @@ let preventTabFromGettingOut = function (pe) { // MUST BE function. CANNOT BE la
 
 
 const showCompletedTasks = (pbutton) => {
-    gconfig.hide_completed.value = !gconfig.hide_completed.value; // invert hide completed value
-    pbutton.extra_data.hidden = gconfig.hide_completed.value;
-    if (gconfig.hide_completed.value) {
+    // gConfig.hide_completed.value = !gConfig.hide_completed.value; // invert hide completed value
+    pbutton.extra_data.hidden = setConfig('hide_completed', !getConfig('hide_completed'));//gConfig.hide_completed.value;
+    if (getConfig('hide_completed')) {
         pbutton.value = 'show completed';
     } else {
         pbutton.value = 'hide completed';
@@ -2133,6 +2255,8 @@ const rebuildRootDiv = () => {
     // let load_from_cookies_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from cookies', onclick: load_from_cookies }, ['margin5px']);
 
     // let load_from_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from local storage', onclick: load_from_local_storage_and_rebuild_div }, ['margin5px']);
+
+    let vSave = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'save', onclick: saveInAllPlaces }, ['margin5px']);
 
     let vrebuildTree = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'rebuild view', onclick: rebuildTaskTreeViewDiv }, ['margin5px']);
 
@@ -2168,9 +2292,11 @@ const rebuildRootDiv = () => {
 
     let vclear_tasks_button = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'clear tasks', onclick: clearTasksAndRebuildDataDiv }, ['margin5px']);
 
+
     let vshow_hide_completed_button = createAndAddChild(gupperMenuDiv, 'input', {
-        type: 'button', value: 'hide completed', onclick: () =>
-            showCompletedTasks(vshow_hide_completed_button), extra_data: { hidden: false }
+        type: 'button', value:
+            (getConfig('hide_completed') ? 'show completed' : 'hide completed'), onclick: () =>
+                showCompletedTasks(vshow_hide_completed_button), extra_data: { hidden: false }
     }, ['margin5px']);
     vshow_hide_completed_button.extra_data.hidden = false;
 
@@ -2202,7 +2328,7 @@ const rebuildRootDiv = () => {
     let vcode_link = createAndAddChild(gupperMenuDiv, 'a', { href: vurl, innerText: 'Code: ' + vurl });
     // create_and_add_child(menu_div, 'br');
 
-    let vdraftObj = gconfig.draft;
+    let vdraftObj = getConfigObj('draft');//gConfig.draft;
     let vinputDraft = createAndAddChild(gdraftTxtAreaDiv, 'textarea', {
         id: 'draft_area_id',
         value: vdraftObj.value,
@@ -2210,7 +2336,7 @@ const rebuildRootDiv = () => {
         style: 'border: 1px solid black',
         // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
         onkeyup: function () {
-            updateAfterTimeout(gconfig.draft, 'value', this, gdefaultSleepMsecs)
+            updateAfterTimeout(getConfigObj('draft'), 'value', this, gdefaultSleepMsecs)
         },
         onkeydown: preventTabFromGettingOut,
     });
