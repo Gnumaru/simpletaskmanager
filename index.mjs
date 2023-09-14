@@ -19,8 +19,11 @@ if the console yields the error "localhost/:1 Unchecked runtime.lastError: The m
 * @property {number} [start_date] int: the unix timestamp for the intended start date
 * @property {number} [due_date] int: the unix timestamp for the expected task term
 * @property {boolean} [hidden] if the task subtree is hidden or not. this is not the same as collapsed. hidden tasks are hiden themselves unles a show hidden tasks button is pressed, which make them visible. this is to remove clutter from view
+* @property {boolean} [collapsed] if the task children are visible or not
 * @property {string} [name] the task name
 * @property {string} [description] the task description
+* @property {HTMLDivElement} [_taskRootDiv_] the root div of the task
+* @property {HTMLDivElement} [_taskChildrenDiv_] the div holding all root divs for the children tasks
 */
 
 /**
@@ -40,8 +43,11 @@ if the console yields the error "localhost/:1 Unchecked runtime.lastError: The m
 * @property {number} start_date int: the unix timestamp for the intended start date
 * @property {number} due_date int: the unix timestamp for the expected task term
 * @property {boolean} hidden if the task subtree is hidden or not. this is not the same as collapsed. hidden tasks are hiden themselves unles a show hidden tasks button is pressed, which make them visible. this is to remove clutter from view
+* @property {boolean} collapsed if the task children are visible or not
 * @property {string} name the task name
 * @property {string} description the task description
+* @property {HTMLDivElement} _taskRootDiv_ the root div of the task
+* @property {HTMLDivElement} _taskChildrenDiv_ the div holding all root divs for the children tasks
 */
 
 /**
@@ -54,6 +60,7 @@ if the console yields the error "localhost/:1 Unchecked runtime.lastError: The m
 * @typedef {Object} GTMTaskStatus
 * @property {number} id int: pk
 * @property {string} name the task status name
+* @property {string} description description of the status type
 */
 
 /**
@@ -204,18 +211,27 @@ gDatabase.statuses = [
     {
         id: 1,
         name: 'To do',
+        description: 'Default status, waiting in the line to be worked uppon, without promise of being the next',
     }, {
         id: 2,
         name: 'Next',
+        description: 'The task (or its children) are intended to be the next task(s) to work on',
     }, {
         id: 101,
         name: 'Doing',
+        description: 'The task (or its children) is being worked uppon right now',
     }, {
         id: 201,
         name: 'Done',
+        description: 'The task was completed as intended',
     }, {
         id: 202,
         name: 'Canceled',
+        description: 'The task was intended to be done but for some reason was abandoned. Tasks registered by mistake are usually deleted (removed from the db), not canceled',
+    }, {
+        id: 203,
+        name: 'Done After',
+        description: 'The task was registered retroactively, after the thing was implemented',
     }
 ];
 
@@ -546,6 +562,9 @@ const newTask = (poverrides, pskipSequenceIncrement = false) => {
 
         // used to temporarily hide tasks to remove clutter from the view
         hidden: false,
+        // used to temporarily collapse the task subtree, to remove clutter from the view
+        collapsed: false,
+
 
 
         // Every key expecting non string values should be put before the 'name' key. Every key expecting string values should be put after 'name' key. Keys should be grouped by javascript type (number, bool, string). this is for organization purposes only
@@ -1523,44 +1542,55 @@ const toggleHidden = element => {
     return vdisplay;
 }
 
+/**
+ * @param {GTMTask} pTaskObj
+ */
+const updateChildrenVisibility = (pTaskObj) => {
+    pTaskObj._taskChildrenDiv_.style.display = pTaskObj.collapsed ? 'none' : 'block';
+}
+
 
 /**
- * @param {HTMLDivElement} [pcontainerdiv]
- * @return {undefined}
+ * @param {GTMTask} pTaskObj
  */
-let hideShowChildren = function (pcontainerdiv) { // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
-    /** @type {HTMLButtonElement} */
-    let vthis = /** @type {?} */(this);
-    const vtypeofthis = typeof vthis;
-    if (vtypeofthis != 'object' && vtypeofthis != 'undefined') {
-        return;
-    }
-    let vfirstparent = vthis?.parentElement;
-    let vsecondparent = vfirstparent?.parentElement ?? null;
-    let vthirdparent = vsecondparent?.parentElement ?? null;
-    /** @type{(undefined|null|HTMLDivElement)} */
-    // 'this' is the button, first parent is the form_div, second parent is the container_div
-    let vcontainerDiv = (/** @type{(undefined|null|HTMLDivElement)} */ (pcontainerdiv ?? vthirdparent)); // inputbtn > btnsdiv > formdiv > treecontainerdiv
-    if (vcontainerDiv == null) {
-        return;
-    }
-    /** @type{(undefined|null|HTMLDivElement)} */
-    let vchildrenDiv = vcontainerDiv.querySelector('div.children');
-    let vdisplay = vchildrenDiv.style.display;
-    if (vdisplay == 'none') {
-        vchildrenDiv.style.display = 'block';
-        // vthis.value = 'hide child tasks';
-        if (vthis) {
-            vthis.value = 'collapse';
-        }
-    } else {
-        vchildrenDiv.style.display = 'none';
-        // vthis.value = 'show child tasks';
-        if (vthis) {
-            vthis.value = 'expand';
-        }
-    }
+const toggleChildrenVisibility = (pTaskObj) => {
+    pTaskObj.collapsed = !pTaskObj.collapsed;
+    updateChildrenVisibility(pTaskObj);
 }
+
+// const hideShowChildren = function (pcontainerdiv) { // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
+//     /** @type {HTMLButtonElement} */
+//     let vthis = /** @type {?} */(this);
+//     const vtypeofthis = typeof vthis;
+//     if (vtypeofthis != 'object' && vtypeofthis != 'undefined') {
+//         return;
+//     }
+//     let vfirstparent = vthis?.parentElement;
+//     let vsecondparent = vfirstparent?.parentElement ?? null;
+//     let vthirdparent = vsecondparent?.parentElement ?? null;
+//     /** @type{(undefined|null|HTMLDivElement)} */
+//     // 'this' is the button, first parent is the form_div, second parent is the container_div
+//     let vcontainerDiv = (/** @type{(undefined|null|HTMLDivElement)} */ (pcontainerdiv ?? vthirdparent)); // inputbtn > btnsdiv > formdiv > treecontainerdiv
+//     if (vcontainerDiv == null) {
+//         return;
+//     }
+//     /** @type{(undefined|null|HTMLDivElement)} */
+//     let vchildrenDiv = vcontainerDiv.querySelector('div.children');
+//     let vdisplay = vchildrenDiv.style.display;
+//     if (vdisplay == 'none') {
+//         vchildrenDiv.style.display = 'block';
+//         // vthis.value = 'hide child tasks';
+//         if (vthis) {
+//             vthis.value = 'collapse';
+//         }
+//     } else {
+//         vchildrenDiv.style.display = 'none';
+//         // vthis.value = 'show child tasks';
+//         if (vthis) {
+//             vthis.value = 'expand';
+//         }
+//     }
+// }
 
 
 const highlightTask = (pbutton, pelement) => {
@@ -1845,6 +1875,11 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
     if (!visleaf) {
         vbackcolhsla.s *= 0.5;
     }
+    let vIsCompleted = isDoneStatusEquivalent(pTaskObj.status_id);
+    if (vIsCompleted) {
+        vbackcolhsla.l = 80;
+        vbackcolhsla.s = 0.0;
+    }
     vcurrent_task_div.style.backgroundColor = `hsla(${vbackcolhsla.h}, ${vbackcolhsla.s}%, ${vbackcolhsla.l}%, ${vbackcolhsla.a})`;
 
 
@@ -1866,12 +1901,16 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
         // log(`before: ${this.extra_data.valueBefore}`);
         // log(`now: ${this.value}`);
         switch (this.value) {
-            case 'reparent': reparentTaskPrompt(pTaskObj); return;
-            case 'collapse/expand': hideShowChildren(pTaskObj._taskRootDiv_); return;
-            case 'description': alert(pTaskObj.description); return;
+            case 'reparent': reparentTaskPrompt(pTaskObj); break; // DO NOT RETURN
+            case 'collapse/expand': {
+                toggleChildrenVisibility(pTaskObj);
+                // saveInAllPlaces();
+                break;
+            } // DO NOT RETURN
+            case 'description': alert(pTaskObj.description); break; // DO NOT RETURN
         }
-        this.blur(); // worst api method name EVER. why not unfocus?
         this.value = '';
+        this.blur(); // worst api method name EVER. why not unfocus?
     }
     let vop0 = createAndAddChild(vselect, 'option', { textContent: '-' });
     let vopreparent = createAndAddChild(vselect, 'option', { textContent: 'reparent' });
@@ -1895,7 +1934,9 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
 
 
     let vcssclasses = [];
-    if (visleaf) {
+    if (vIsCompleted) {
+        vcssclasses.push('gray'); // completed tasks are always gray regardless of being leafs or not
+    } else if (visleaf) {
         vcssclasses.push('bold'); // only leaf tasks are bold for easy diferentiation between groups and actual tasks
     } else {
         vcssclasses.push('gray'); // if task is not a tree leaf, then it should be grayed out to reduce attention
@@ -2060,10 +2101,15 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
         type: 'button', value: 'temporarily hide', onclick: () =>
             hideTaskUntilReload(vRootTaskDiv)
     }, ['margin5px']);
-    let vhide_show_children_button = createAndAddChild(vButtonsDiv, 'input', { type: 'button', value: 'collapse', onclick: hideShowChildren }, ['margin5px']);
+    let vhide_show_children_button = createAndAddChild(vButtonsDiv, 'input', {
+        type: 'button', value: 'collapse', onclick: () => {
+            toggleChildrenVisibility(pTaskObj);
+            // saveInAllPlaces();
+        }
+    }, ['margin5px']);
     let vadd_child_task_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'add child task', onclick: () =>
-            addChildTaskAndDiv(vchildren_div, pTaskObj)
+            addChildTaskAndDiv(vChildrenDiv, pTaskObj)
     }, ['margin5px']);
     let vdelete_task_button = createAndAddChild(vButtonsDiv, 'input', {
         type: 'button', value: 'delete task', onclick: () =>
@@ -2108,9 +2154,10 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
     // delete (with children)
 
 
-    let vchildren_div = createAndAddChild(vRootTaskDiv, 'div', { id: gid_children_div_prefix + vTaskId });
-    vclassList = vchildren_div.classList;
+    let vChildrenDiv = createAndAddChild(vRootTaskDiv, 'div', { id: gid_children_div_prefix + vTaskId });
+    vclassList = vChildrenDiv.classList;
     vclassList.add('children');
+    pTaskObj._taskChildrenDiv_ = vChildrenDiv
 
 
     let vordered_child_tasks = vchild_tasks.slice().sort(taskCompareByOrder);
@@ -2123,8 +2170,12 @@ const createTaskContainer = (pTaskObj, ptaskTreeViewDivOrChildTasksDiv, pinsertB
         if (vhide_completed && isDoneStatusEquivalent(ichild_task.status_id)) {
             continue; // skip completed root tasks IF told to do so
         }
-        createTaskContainer(ichild_task, vchildren_div)
+        createTaskContainer(ichild_task, vChildrenDiv)
     }
+    if (pTaskObj.id == 1) {
+        let a = 0;
+    }
+    updateChildrenVisibility(pTaskObj);
 };
 
 
@@ -2143,7 +2194,7 @@ const rebuildTaskTreeViewDiv = () => {
     for (let iroot_task of vordered_root_tasks) {
         iroot_task.order = ++vorder;
         iroot_task.indent = 0;
-        if (vhide_completed && iroot_task.status_id == 4) {
+        if (vhide_completed && isDoneStatusEquivalent(iroot_task.status_id)) {
             continue; // skip completed root tasks
         }
         createTaskContainer(iroot_task, gtaskTreeViewDiv)
@@ -2204,7 +2255,7 @@ const toggleCssOverflow = () => {
 }
 
 
-let preventTabFromGettingOut = function (pe) { // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
+const preventTabFromGettingOut = function (pe) { // MUST BE function. CANNOT BE lambda. we need the "this" keyword here
     if (pe.key == 'Tab') {
         pe.preventDefault();
         let start = this.selectionStart;
@@ -2256,13 +2307,13 @@ const rebuildRootDiv = () => {
 
     // let load_from_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from local storage', onclick: load_from_local_storage_and_rebuild_div }, ['margin5px']);
 
-    let vSave = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'save', onclick: saveInAllPlaces }, ['margin5px']);
+    let vSaveBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'save', title: 'Data is saved automatically when changing properties in the task form fields or the draft area. you only need to manually save if you want to save the folding information (I decided it was not needed to save after every fold/unfold)', onclick: saveInAllPlaces }, ['margin5px']);
 
-    let vrebuildTree = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'rebuild view', onclick: rebuildTaskTreeViewDiv }, ['margin5px']);
+    let vRebuildTreeBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'rebuild view', title: 'throws away the entire task tree view and rebuild it from scratch. should be useless when the app is fully functional', onclick: rebuildTaskTreeViewDiv }, ['margin5px']);
 
-    let vadd_root_task_button = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'add root task', onclick: addRootTask }, ['margin5px']);
+    let vAddRootTaskBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'add root task', title: 'adds a task with no parent, it will become a sibling of the current existing root tasks', onclick: addRootTask }, ['margin5px']);
 
-    let vupload_data_button = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'upload db', onclick: uploadFile }, ['margin5px']);
+    let vUploadDataBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'upload db', title: 'replace all the app data for anoter uploaded file (tsv or json)', onclick: uploadFile }, ['margin5px']);
 
     // let load_fake_tasks_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'generate fake tasks', onclick: load_fake_tasks }, ['margin5px']);
 
@@ -2286,21 +2337,20 @@ const rebuildRootDiv = () => {
 
     // let download_json_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'download json', onclick: download_json }, ['margin5px']);
 
-    let vdownload_tsv_button = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'download db', onclick: downloadTsv }, ['margin5px']);
+    let vDownloadTsvBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'download db', title: 'will download the entire app data as a multitable tsv file.', onclick: downloadTsv }, ['margin5px']);
 
     // create_and_add_child(menu_div, 'br');
 
-    let vclear_tasks_button = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'clear tasks', onclick: clearTasksAndRebuildDataDiv }, ['margin5px']);
+    let vClearTasksBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'clear tasks', title: 'delete all tasks and start from scratch. will not delete any other data, only the tasks.', onclick: clearTasksAndRebuildDataDiv }, ['margin5px']);
 
 
-    let vshow_hide_completed_button = createAndAddChild(gupperMenuDiv, 'input', {
-        type: 'button', value:
-            (getConfig('hide_completed') ? 'show completed' : 'hide completed'), onclick: () =>
-                showCompletedTasks(vshow_hide_completed_button), extra_data: { hidden: false }
+    let vShowHideCompletedButton = createAndAddChild(gupperMenuDiv, 'input', {
+        type: 'button', title: 'hide or show completed tasks (tasks with status equivalent of completed, like "done" or "canceled")', value: (getConfig('hide_completed') ? 'show completed' : 'hide completed'), onclick: () =>
+            showCompletedTasks(vShowHideCompletedButton), extra_data: { hidden: false }
     }, ['margin5px']);
-    vshow_hide_completed_button.extra_data.hidden = false;
+    vShowHideCompletedButton.extra_data.hidden = false;
 
-    let vtoggle_overflow_button = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'toggle css overflow', onclick: toggleCssOverflow }, ['margin5px']);
+    let vToggleOverflowBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'toggle css overflow', title: 'toggle the horizontal css overflow. this lets you resize the page horizontally without affecting the page layout', onclick: toggleCssOverflow }, ['margin5px']);
 
 
 
@@ -2318,14 +2368,14 @@ const rebuildRootDiv = () => {
 
     // add root children
 
-    let vurl = 'https://gnumaru.github.io/simpletaskmanager/';
-    let vsite_link = createAndAddChild(gupperMenuDiv, 'a', { href: vurl, innerText: 'App: ' + vurl });
+    let vUrl = 'https://gnumaru.github.io/simpletaskmanager/';
+    let vPageLink = createAndAddChild(gupperMenuDiv, 'a', { href: vUrl, title: 'click here to access this app as a github page', innerText: 'App: ' + vUrl });
     // create_and_add_child(menu_div, 'br');
 
     createAndAddChild(gupperMenuDiv, 'span', { innerText: ' ' });
 
-    vurl = 'https://github.com/Gnumaru/simpletaskmanager';
-    let vcode_link = createAndAddChild(gupperMenuDiv, 'a', { href: vurl, innerText: 'Code: ' + vurl });
+    vUrl = 'https://github.com/Gnumaru/simpletaskmanager';
+    let vCodeLink = createAndAddChild(gupperMenuDiv, 'a', { href: vUrl, title: 'click here to view the source on github', innerText: 'Code: ' + vUrl });
     // create_and_add_child(menu_div, 'br');
 
     let vdraftObj = getConfigObj('draft');//gConfig.draft;
