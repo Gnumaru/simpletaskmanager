@@ -1429,6 +1429,14 @@ const loadFromLocalStorage = () => {
 //     rebuild_data_div;
 // }
 
+const collapseUncolapseAll = () => {
+    const vNewColapseStateBool = !gDatabase.tasks[0].collapsed
+    for (const iTaskObj of gDatabase.tasks) {
+        iTaskObj.collapsed = vNewColapseStateBool;
+        updateChildrenVisibility(iTaskObj);
+    }
+}
+
 
 const saveInAllPlaces = () => {
     let vtsv = generateMultitableTsvText(gDefaultQuoteChar, gDefaultColumnSeparator);
@@ -2307,6 +2315,8 @@ const rebuildRootDiv = () => {
 
     // let load_from_local_storage_button = create_and_add_child(menu_div, 'input', { type: 'button', value: 'load from local storage', onclick: load_from_local_storage_and_rebuild_div }, ['margin5px']);
 
+    let vCollapseUncollapseAllBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'Collapse All', title: 'collapse or uncollapse all tasks', onclick: collapseUncolapseAll }, ['margin5px']);
+
     let vSaveBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'save', title: 'Data is saved automatically when changing properties in the task form fields or the draft area. you only need to manually save if you want to save the folding information (I decided it was not needed to save after every fold/unfold)', onclick: saveInAllPlaces }, ['margin5px']);
 
     let vRebuildTreeBtn = createAndAddChild(gupperMenuDiv, 'input', { type: 'button', value: 'rebuild view', title: 'throws away the entire task tree view and rebuild it from scratch. should be useless when the app is fully functional', onclick: rebuildTaskTreeViewDiv }, ['margin5px']);
@@ -2390,6 +2400,9 @@ const rebuildRootDiv = () => {
         },
         onkeydown: preventTabFromGettingOut,
     });
+    for (const i of new Array(20)) {
+        createAndAddChild(grootDiv, 'br');
+    }
 };
 
 
