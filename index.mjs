@@ -958,7 +958,7 @@ const generateMultitableTsvText = (pQuoteChar = gDefaultQuoteChar, pColumnSepara
             vStr = vStr.substring(0, vStr.length - 1) + gDefaultRowSeparator;
         }
         vStr = vStr.substring(0, vStr.length - 1) + gdefault_table_separator;
-        log('finished storing ' + iTableName)
+        // log('finished storing ' + iTableName)
     }
     vStr = vStr.substring(0, vStr.length - gdefault_table_separator.length);
 
@@ -1441,7 +1441,7 @@ const collapseUncolapseAll = () => {
 const saveInAllPlaces = () => {
     let vtsv = generateMultitableTsvText(gDefaultQuoteChar, gDefaultColumnSeparator);
     let vb64 = compressToBase64(vtsv);
-    log(`saving data with lenght of ${vb64.length} bytes`);
+    log(`saving data with (compressed) lenght of ${vb64.length} bytes`);
     saveToUrl(vb64);
     saveToLocalStorage(vb64);
     saveToCookies(vb64);
