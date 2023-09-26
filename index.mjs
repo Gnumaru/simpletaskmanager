@@ -1152,9 +1152,9 @@ const uploadInputOnchange = () => {
         if (!vsuccess) {
             try {
                 parseMultitableTsvText(vtxt_data)
-                log(gDatabase.config[0]);
+                // log(gDatabase.config[0]);
                 rebuildIndexes();
-                log(gDatabase.config[0]);
+                // log(gDatabase.config[0]);
                 log('sucess loading tsv');
                 vsuccess = true;
 
@@ -1441,7 +1441,7 @@ const collapseUncolapseAll = () => {
 const saveInAllPlaces = () => {
     let vtsv = generateMultitableTsvText(gDefaultQuoteChar, gDefaultColumnSeparator);
     let vb64 = compressToBase64(vtsv);
-    log(`saving data with (compressed) lenght of ${vb64.length} bytes`);
+    log(`saving data with (compressed) lenght of ${vb64.length} bytes (${Math.round(vb64.length / 1024.0)} KB, (${Math.round(vb64.length / (1024.0 * 1024.0))} MB)`);
     saveToUrl(vb64);
     saveToLocalStorage(vb64);
     saveToCookies(vb64);
